@@ -23,8 +23,8 @@ async def test_counter(dut):
   await ClockCycles(dut.clk, 10)
   dut.rst_n.value = 1
 
-  # Set the input values, wait one clock cycle, and check the output
   dut._log.info("Test")
+  await ClockCycles(dut.clk, 1)
 
   # wait 100 cycles, output value should be 100
   await ClockCycles(dut.clk, 100)
@@ -32,6 +32,7 @@ async def test_counter(dut):
 
   # reset signal again
   dut.rst_n.value = 0
+  await ClockCycles(dut.clk, 1)
 
   # wait 10 clock cycles, expect output value to be 0
   await ClockCycles(dut.clk, 10)
@@ -40,6 +41,8 @@ async def test_counter(dut):
   # remove reset
   await ClockCycles(dut.clk, 1)
   dut.rst_n.value = 1
+
+  await ClockCycles(dut.clk, 1)
 
   # wait 10 clock cycles, expect output value to be 10
   await ClockCycles(dut.clk, 10)
