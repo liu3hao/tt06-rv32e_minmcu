@@ -24,5 +24,7 @@ module tt_um_example (
     end
 
     assign uo_out = counter; 
+    assign uio_out = 0;
+    assign uio_oe = 0;
 
 endmodule
