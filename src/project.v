@@ -22,9 +22,9 @@ module tt_um_example (
     assign uio_out = 8'b10101010;
     assign uio_oe =  8'b10101010;
 
-    always_ff @ (posedge clk) begin
-        if (rst_n == 0) counter <= 0;
-        else counter <= counter + 1;
+    always_ff @ (posedge clk, posedge rst_n) begin
+        if (rst_n == 1) counter <= counter + 1;
+        else counter <= 0;
     end
 
 endmodule
