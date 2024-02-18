@@ -18,13 +18,13 @@ module tt_um_example (
 
     logic [7:0] counter;
 
+    assign uo_out = counter; 
+    assign uio_out = 8'b10101010;
+    assign uio_oe =  8'b10101010;
+
     always_ff @ (posedge clk, posedge rst_n) begin
         if (rst_n == 0) counter <= 0;
         else counter <= counter + 1;
     end
-
-    assign uo_out = counter; 
-    assign uio_out = 8'b10101010;
-    assign uio_oe =  8'b10101010;
 
 endmodule
