@@ -5,45 +5,51 @@ import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import ClockCycles
 
+def get_value1(val1, val2):
+    return val1 + (((val2 >> 6) & 0b11) << 6)
+
+def get_value2(opcode, val1, val2):
+    return (opcode << 4) + (val2 & 0b1111)
+
 @cocotb.test()
 async def test_counter(dut):
-  dut._log.info("Start")
+    dut._log.info("Start")
   
-  # Our example module doesn't use clock and reset, but we show how to use them here anyway.
-  clock = Clock(dut.clk, 10, units="us")
-  cocotb.start_soon(clock.start())
+    clock = Clock(dut.clk, 10, units="us")
+    cocotb.start_soon(clock.start())
 
-  # Reset
-  dut._log.info("Reset")
-  dut.ena.value = 1
-  dut.ui_in.value = 0
-  dut.uio_in.value = 0
-  dut.rst_n.value = 0
+    # Reset
+    dut._log.info("Reset")
+    dut.ena.value = 1
+    dut.ui_in.value = 0
+    dut.uio_in.value = 0
+    dut.rst_n.value = 0
 
-  await ClockCycles(dut.clk, 10)
-  dut.rst_n.value = 1
+    await ClockCycles(dut.clk, 10)
+    dut.rst_n.value = 1
 
-  dut._log.info("Test")
-  await ClockCycles(dut.clk, 1)
+    dut._log.info("Test")
+    await ClockCycles(dut.clk, 2)
 
-  # wait 100 cycles, output value should be 100
-  await ClockCycles(dut.clk, 100)
-  assert dut.uo_out.value == 100
+    val1 = 12
+    val2 = 10
 
-  # reset signal again
-  dut.rst_n.value = 0
-  await ClockCycles(dut.clk, 1)
+    dut.ui_in.value = get_value1(val1, val2)
+    dut.uio_in.value = get_value2(0b00, val1, val2)
 
-  # wait 10 clock cycles, expect output value to be 0
-  await ClockCycles(dut.clk, 10)
-  assert dut.uo_out.value == 0
+    await ClockCycles(dut.clk, 1)
+    assert dut.uo_out.value == 22
 
-  # remove reset
-  await ClockCycles(dut.clk, 1)
-  dut.rst_n.value = 1
+    val1 = 5
+    val2 = 10
+    dut.ui_in.value = get_value1(val1, val2)
+    dut.uio_in.value = get_value2(0b00, val1, val2)
+    await ClockCycles(dut.clk, 1)
+    assert dut.uo_out.value == 15
 
-  await ClockCycles(dut.clk, 1)
-
-  # wait 10 clock cycles, expect output value to be 10
-  await ClockCycles(dut.clk, 10)
-  assert dut.uo_out.value == 10
+    val1 = 20
+    val2 = 2
+    dut.ui_in.value = get_value1(val1, val2)
+    dut.uio_in.value = get_value2(0b01, val1, val2)
+    await ClockCycles(dut.clk, 1)
+    assert dut.uo_out.value == 18
