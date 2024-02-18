@@ -18,7 +18,7 @@ module tt_um_example (
 
     // logic [7:0] counter;
 
-    assign uo_out = ui_in; 
+    assign uo_out = ui_in + uio_in; 
     assign uio_out = 8'b10101010;
     assign uio_oe =  8'b10101010;
 
