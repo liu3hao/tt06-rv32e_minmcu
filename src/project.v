@@ -19,7 +19,8 @@ module tt_um_example (
 );
 
     // uio_in is used as the opcode command
-    
+    assign uio_out = 0;
+
     // set the bidir pins as all inputs
     assign uio_oe = 0;
 
