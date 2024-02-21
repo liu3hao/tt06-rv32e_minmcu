@@ -63,7 +63,7 @@ async def test_counter(dut):
     await ClockCycles(dut.sclk, 64)
     dut._log.info("End clock")
 
-    await ClockCycles(dut.clk, 10)
+    await ClockCycles(dut.clk, 100)
 
     spi_content = hex(spi_slave.content)
     dut._log.info("got spi slave content: " + spi_content)

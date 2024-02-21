@@ -45,13 +45,15 @@ module tt_um_example (
 
     reg [7:0] spi_clk_counter;
 
+    reg [7:0] tmp_delay;
+
     always @ (posedge clk) begin
         if (rst_n == 0) begin
             state <= STATE_START;
             spi_state <= SPI_STATE_IDLE;
 
             // Fill up tx buffer with some bytes first
-            spi_tx_buffer <= {8'h88, 8'h12, 8'h34, 8'h56};
+            spi_tx_buffer <= {8'h03, 8'h12, 8'h34, 8'h56};
             spi_rx_buffer <= 0; // clear the SPI Rx buffer
 
         end else begin
@@ -59,13 +61,19 @@ module tt_um_example (
                 state <= STATE_READ_ADDR;
                 spi_clk_counter <= 0;
                 spi_state <= SPI_STATE_ENABLE_CS_DELAY_CLK;
+            end else if (state == STATE_READ_ADDR) begin
+
+                if (spi_state == SPI_STATE_CLK_DELAY_DISABLE_CS && cs == 1) begin
+                    state <= STATE_READ_ADDR_DONE;
+                    spi_state <= SPI_STATE_IDLE;
+                    tmp_delay <= 0;
+                end
             end
         end
     end
 
     always @ (posedge sclk) begin
         if (state == STATE_READ_ADDR) begin
-            // spi_tx_buffer <= (spi_tx_buffer << 1);
             // Read MISO on the rising edge of the clock
             spi_rx_buffer <= (spi_rx_buffer << 1) | miso;
         end

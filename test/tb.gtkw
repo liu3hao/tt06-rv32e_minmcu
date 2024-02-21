@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.107 (w)1999-2020 BSI
-[*] Wed Feb 21 19:05:13 2024
+[*] Wed Feb 21 19:14:25 2024
 [*]
 [dumpfile] "/Users/weihao/Hardware_projects/tinytapeout/tt06-spiflash/test/tb.vcd"
-[dumpfile_mtime] "Wed Feb 21 19:04:44 2024"
-[dumpfile_size] 42046
+[dumpfile_mtime] "Wed Feb 21 19:14:17 2024"
+[dumpfile_size] 45004
 [savefile] "/Users/weihao/Hardware_projects/tinytapeout/tt06-spiflash/test/tb.gtkw"
-[timestart] 183000000
+[timestart] 2257000000
 [size] 1920 974
 [pos] -1 -1
-*-30.271074 10326000000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-30.271074 10368000000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] tb.
 [treeopen] tb.user_project.
 [sst_width] 193
@@ -117,5 +117,9 @@ tb.user_project.spi_tx_buffer[31:0]
 (31)tb.user_project.spi_tx_buffer[31:0]
 @1401200
 -group_end
+@28
+tb.user_project.state[2:0]
+@29
+tb.user_project.cs
 [pattern_trace] 1
 [pattern_trace] 0
