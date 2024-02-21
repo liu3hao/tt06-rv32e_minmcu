@@ -40,3 +40,6 @@ MODULE = test
 
 # include cocotb's make rules to take care of the simulator setup
 include $(shell cocotb-config --makefiles)/Makefile.sim
+
+gtk:
+	open tb.vcd -a gtkwave
