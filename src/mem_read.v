@@ -56,17 +56,23 @@ module mem_read (
             spi_rx_buffer <= 0;
 
         end else begin
-            if (state == STATE_START && start_fetch == 1) begin
-                state <= STATE_READ_ADDR;
-                spi_clk_counter <= 0;
-                spi_state <= SPI_STATE_ENABLE_CS_DELAY_CLK;
-                spi_tx_buffer <= {8'h03, target_address};
+            if (start_fetch == 1) begin
+                if (state == STATE_START) begin
+                    state <= STATE_READ_ADDR;
+                    spi_clk_counter <= 0;
+                    spi_state <= SPI_STATE_ENABLE_CS_DELAY_CLK;
+                    spi_tx_buffer <= {8'h03, target_address};
 
-            end else if (state == STATE_READ_ADDR) begin
-                if (spi_state == SPI_STATE_CLK_DELAY_DISABLE_CS && cs == 1) begin
-                    state <= STATE_READ_ADDR_DONE;
-                    spi_state <= SPI_STATE_CS_CLK_IDLE;
+                end else if (state == STATE_READ_ADDR) begin
+                    if (spi_state == SPI_STATE_CLK_DELAY_DISABLE_CS && cs == 1) begin
+                        state <= STATE_READ_ADDR_DONE;
+                        spi_state <= SPI_STATE_CS_CLK_IDLE;
+                    end
                 end
+            end else if (start_fetch == 0) begin
+                // Stop everything and go back to the initial state
+                state <= STATE_START;
+                spi_state <= SPI_STATE_CS_CLK_IDLE;
             end
         end
     end
