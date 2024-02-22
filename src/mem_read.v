@@ -40,10 +40,10 @@ module mem_read (
     reg [1:0] spi_state;  // SPI CLK and CS state
 
     spi_clk clk1 (
-        spi_state,
-        clk,
-        sclk,
-        cs
+        .spi_clk_state(spi_state),
+        .refclk(clk),
+        .outclk(sclk),
+        .cs(cs)
     );
 
     reg [7:0] spi_clk_counter;
@@ -64,6 +64,8 @@ module mem_read (
                     spi_tx_buffer <= {8'h03, target_address};
 
                 end else if (state == STATE_READ_ADDR) begin
+                    // If the CS is back to 1, then change the state to show
+                    // that the read is completed.
                     if (spi_state == SPI_STATE_CLK_DELAY_DISABLE_CS && cs == 1) begin
                         state <= STATE_READ_ADDR_DONE;
                         spi_state <= SPI_STATE_CS_CLK_IDLE;
@@ -100,7 +102,7 @@ module mem_read (
     assign mosi = (state == STATE_READ_ADDR && cs == 0) ?
                     spi_tx_buffer[SPI_TX_BUFFER_SIZE-1] : 1'bz;
 
-    assign fetch_done = state == STATE_READ_ADDR_DONE;
+    assign fetch_done = start_fetch && state == STATE_READ_ADDR_DONE;
     assign fetched_data = (state == STATE_READ_ADDR_DONE) ? spi_rx_buffer : 0;
 
 endmodule

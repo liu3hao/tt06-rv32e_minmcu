@@ -5,18 +5,10 @@
 
 `define default_netname none
 
-localparam int STATE_START = 0;
-localparam int STATE_READ_ADDR = 1;
-localparam int STATE_READ_ADDR_DONE = 2;
+localparam int STATE_FETCH_DATA = 0;
+localparam int STATE_PARSE_DATA = 1;
 
-
-localparam int SPI_STATE_IDLE = 0;
-localparam int SPI_STATE_ENABLE_CS_DELAY_CLK = 1;
-localparam int SPI_STATE_CLK_DELAY_DISABLE_CS = 2;
-
-localparam int SPI_TX_BUFFER_SIZE = 32;
-
-module tt_um_example (
+module rv32e_cpu (
     // input  wire [7:0] ui_in,    // Dedicated inputs
     // output wire [7:0] uo_out,   // Dedicated outputs
 
@@ -34,100 +26,53 @@ module tt_um_example (
     input  wire       rst_n     // reset_n - low to reset
 );
     
-    reg [2:0] state;
+    reg [31:0] prog_counter;
 
-    reg [SPI_TX_BUFFER_SIZE - 1:0] spi_tx_buffer;
-    reg [SPI_TX_BUFFER_SIZE - 1:0] spi_rx_buffer;
+    reg [31:0] fetched_data;
+    reg [23:0] fetch_address;
 
-    reg [1:0] spi_state;
+    reg [1:0] state;
 
-    spi_clk clk1 (spi_state, clk, sclk, cs);
+    wire fetch_done;
+    reg start_fetch;
 
-    reg [7:0] spi_clk_counter;
+    mem_read mem_read1 (
+        .miso(miso),
+        .mosi(mosi),
+        .cs(cs),
+        .sclk(sclk),
 
-    reg [7:0] tmp_delay;
+        .target_address(fetch_address),
+        .fetched_data(fetched_data),
+
+        .start_fetch(start_fetch),
+        .fetch_done(fetch_done),
+
+        .clk(clk),
+        .rst_n(rst_n)
+    );
 
     always @ (posedge clk) begin
         if (rst_n == 0) begin
-            state <= STATE_START;
-            spi_state <= SPI_STATE_IDLE;
-
-            // Fill up tx buffer with some bytes first
-            spi_tx_buffer <= {8'h03, 8'h12, 8'h34, 8'h56};
-            spi_rx_buffer <= 0; // clear the SPI Rx buffer
+            state <= STATE_FETCH_DATA;
+            prog_counter <= 0;
 
         end else begin
-            if (state == STATE_START) begin
-                state <= STATE_READ_ADDR;
-                spi_clk_counter <= 0;
-                spi_state <= SPI_STATE_ENABLE_CS_DELAY_CLK;
-            end else if (state == STATE_READ_ADDR) begin
-
-                if (spi_state == SPI_STATE_CLK_DELAY_DISABLE_CS && cs == 1) begin
-                    state <= STATE_READ_ADDR_DONE;
-                    spi_state <= SPI_STATE_IDLE;
-                    tmp_delay <= 0;
+            if (state == STATE_FETCH_DATA) begin
+                if (fetch_done == 0) begin
+                    fetch_address <= prog_counter;
+                    start_fetch <= 1;
+                end else begin
+                    // Got something!
+                    state <= STATE_PARSE_DATA;
                 end
+            end else if (state == STATE_PARSE_DATA) begin
+                // For now, skip back to fetch more data
+                start_fetch <= 0;
+                prog_counter <= prog_counter + 4;
+                state <= STATE_FETCH_DATA;
             end
         end
     end
-
-    always @ (posedge sclk) begin
-        if (state == STATE_READ_ADDR) begin
-            // Read MISO on the rising edge of the clock
-            spi_rx_buffer <= (spi_rx_buffer << 1) | miso;
-        end
-    end
-
-    always @ (negedge sclk) begin
-        if (state == STATE_READ_ADDR) begin
-            // Shift out the bits on the falling edge of the clock.
-            spi_tx_buffer <= (spi_tx_buffer << 1);
-
-            spi_clk_counter <= spi_clk_counter + 1;
-            if (spi_clk_counter + 1 >= 64) begin
-                spi_state <= SPI_STATE_CLK_DELAY_DISABLE_CS;
-            end
-        end
-    end
-
-    // the MSB is transmitted first.
-    assign mosi = spi_tx_buffer[SPI_TX_BUFFER_SIZE-1];
 
 endmodule
-
-module spi_clk #(parameter int size=4) (
-    input wire[1:0] spi_clk_state,
-    input wire refclk,
-    output wire outclk,
-    output wire cs
-);
-    reg [size-1:0] counter;
-    reg [3:0] cs_delay;
-
-    always @ (posedge refclk) begin
-
-        if (spi_clk_state == SPI_STATE_IDLE) begin
-            counter <= 0;
-            cs_delay <= 0;
-
-        end else if (spi_clk_state == SPI_STATE_ENABLE_CS_DELAY_CLK) begin
-            if (cs_delay > 4) begin
-                counter <= counter + 1;
-            end else begin
-                cs_delay <= cs_delay + 1;
-            end
-        end else if (spi_clk_state == SPI_STATE_CLK_DELAY_DISABLE_CS) begin
-            if (cs_delay < 8) begin
-                cs_delay <= cs_delay + 1;
-            end
-        end
-    end
-
-    assign outclk = (spi_clk_state == SPI_STATE_ENABLE_CS_DELAY_CLK 
-                        && cs_delay > 4 && !counter[size-1]);
-
-    assign cs = !(spi_clk_state == SPI_STATE_ENABLE_CS_DELAY_CLK ||
-                (spi_clk_state == SPI_STATE_CLK_DELAY_DISABLE_CS && cs_delay < 8));
-
-endmodule;
