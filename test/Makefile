@@ -1,6 +1,13 @@
 # Makefile
 # See https://docs.cocotb.org/en/stable/quickstart.html for more info
 
+INSTALL_COCOTBEXT_SPI := $(shell \
+	if ! pip show cocotbext-spi >/dev/null 2>&1; then \
+        echo "Package 'cocotbext-spi' is not installed. Installing..."; \
+        pip install cocotbext-spi==0.4.0; \
+    fi \
+)
+
 # defaults
 SIM ?= icarus
 TOPLEVEL_LANG ?= verilog
@@ -14,8 +21,6 @@ ifneq ($(GATES),yes)
 SIM_BUILD				= sim_build/rtl
 VERILOG_SOURCES += $(addprefix $(SRC_DIR)/,$(PROJECT_SOURCES))
 COMPILE_ARGS 		+= -I$(SRC_DIR)
-
-pip install cocotbext-spi==0.4.0
 
 else
 
