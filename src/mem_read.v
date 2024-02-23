@@ -144,4 +144,3 @@ module spi_clk #(
                 (spi_clk_state == SPI_STATE_CLK_DELAY_DISABLE_CS && cs_delay < 8));
 
 endmodule
-;
