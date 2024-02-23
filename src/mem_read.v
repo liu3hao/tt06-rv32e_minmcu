@@ -100,7 +100,7 @@ module mem_read (
 
     // MSB is transmitted first, need to check if high impedance state is needed
     assign mosi = (state == STATE_READ_ADDR && cs == 0) ?
-                    spi_tx_buffer[SPI_TX_BUFFER_SIZE-1] : 1'bz;
+                    spi_tx_buffer[SPI_TX_BUFFER_SIZE-1] : 0;
 
     assign fetch_done = start_fetch && state == STATE_READ_ADDR_DONE;
     assign fetched_data = (state == STATE_READ_ADDR_DONE) ? spi_rx_buffer : 0;

@@ -12,7 +12,7 @@ from helpers import SimpleSpiSlave
 async def test_simple(dut):
     dut._log.info("Start")
 
-    spi_slave = SimpleSpiSlave(SpiBus.from_entity(dut.cpu1))
+    spi_slave = SimpleSpiSlave(SpiBus.from_entity(dut.cpu1.mem_read1))
     spi_slave.return_value = 0x11223344
   
     clock = Clock(dut.clk, 10, units="us")
@@ -27,16 +27,16 @@ async def test_simple(dut):
     dut.rst_n.value = 1
 
     dut._log.info("Fetch first 4 bytes")
-    await ClockCycles(dut.cpu1.sclk, 64)
+    await ClockCycles(dut.cpu1.mem_read1.sclk, 64)
 
     await RisingEdge(dut.cpu1.fetch_done)
     assert dut.cpu1.fetched_data.value == 0x11223344
     spi_slave.return_value = 0x55665566
 
-    await FallingEdge(dut.cpu1.cs)
+    await FallingEdge(dut.cpu1.mem_read1.cs)
 
     dut._log.info("Fetch next 4 bytes")
-    await ClockCycles(dut.cpu1.sclk, 64)
+    await ClockCycles(dut.cpu1.mem_read1.sclk, 64)
 
     await RisingEdge(dut.cpu1.fetch_done)
     assert dut.cpu1.fetched_data.value == 0x55665566

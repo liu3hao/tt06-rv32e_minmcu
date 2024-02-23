@@ -25,7 +25,7 @@ module tt_um_rv32e_cpu (
     input  wire       clk,      // clock
     input  wire       rst_n     // reset_n - low to reset
 );
-    
+
     reg [31:0] prog_counter;
 
     reg [31:0] fetched_data;
@@ -36,20 +36,17 @@ module tt_um_rv32e_cpu (
     wire fetch_done;
     reg start_fetch;
 
-    assign miso = ui_in[0];
-    assign sclk = uo_out[0];
-    assign mosi = uo_out[1];
-    assign cs = uo_out[2];
-
     // Not used yet.
     assign uio_oe = 0;
     assign uio_out = 0;
 
+    assign uo_out[7:3] = 0;
+
     mem_read mem_read1 (
-        .miso(miso),
-        .mosi(mosi),
-        .cs(cs),
-        .sclk(sclk),
+        .sclk(uo_out[0]),
+        .mosi(uo_out[1]),
+        .cs(uo_out[2]),
+        .miso(ui_in[0]),
 
         .target_address(fetch_address),
         .fetched_data(fetched_data),
