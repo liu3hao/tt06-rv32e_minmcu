@@ -5,15 +5,15 @@
 
 `define default_netname none
 
-localparam int STATE_START = 0;
-localparam int STATE_READ_ADDR = 1;
-localparam int STATE_READ_ADDR_DONE = 2;
+localparam STATE_START = 0;
+localparam STATE_READ_ADDR = 1;
+localparam STATE_READ_ADDR_DONE = 2;
 
-localparam int SPI_STATE_CS_CLK_IDLE = 0;
-localparam int SPI_STATE_ENABLE_CS_DELAY_CLK = 1;
-localparam int SPI_STATE_CLK_DELAY_DISABLE_CS = 2;
+localparam SPI_STATE_CS_CLK_IDLE = 0;
+localparam SPI_STATE_ENABLE_CS_DELAY_CLK = 1;
+localparam SPI_STATE_CLK_DELAY_DISABLE_CS = 2;
 
-localparam int SPI_TX_BUFFER_SIZE = 32;
+localparam SPI_TX_BUFFER_SIZE = 32;
 
 module mem_read (
     input  wire miso,  // Main spi signals
@@ -48,12 +48,15 @@ module mem_read (
 
     reg [7:0] spi_clk_counter;
 
+    reg prev_sclk;
+
     always @(posedge clk) begin
         if (rst_n == 0) begin
             state <= STATE_START;
             spi_state <= SPI_STATE_CS_CLK_IDLE;
             spi_tx_buffer <= 0; // Clear buffers
             spi_rx_buffer <= 0;
+            prev_sclk <= 0;
 
         end else begin
             if (start_fetch == 1) begin
@@ -64,6 +67,22 @@ module mem_read (
                     spi_tx_buffer <= {8'h03, target_address};
 
                 end else if (state == STATE_READ_ADDR) begin
+
+                    prev_sclk <= sclk;
+
+                    if (sclk == 1 && prev_sclk == 0) begin
+                        // Read MISO on the rising edge of the clock
+                        spi_rx_buffer <= (spi_rx_buffer << 1) | {31'b0, miso};
+                    end else if (sclk == 0 && prev_sclk == 1) begin
+                        // Shift out the bits on the falling edge of the clock.
+                        spi_tx_buffer   <= (spi_tx_buffer << 1);
+
+                        spi_clk_counter <= spi_clk_counter + 1;
+                        if (spi_clk_counter + 1 >= 64) begin
+                            spi_state <= SPI_STATE_CLK_DELAY_DISABLE_CS;
+                        end
+                    end
+
                     // If the CS is back to 1, then change the state to show
                     // that the read is completed.
                     if (spi_state == SPI_STATE_CLK_DELAY_DISABLE_CS && cs == 1) begin
@@ -79,24 +98,24 @@ module mem_read (
         end
     end
 
-    always @(posedge sclk) begin
-        if (state == STATE_READ_ADDR) begin
-            // Read MISO on the rising edge of the clock
-            spi_rx_buffer <= (spi_rx_buffer << 1) | miso;
-        end
-    end
+    // always @(posedge sclk) begin
+    //     if (state == STATE_READ_ADDR) begin
+    //         // Read MISO on the rising edge of the clock
+    //         spi_rx_buffer <= (spi_rx_buffer << 1) | {31'b0, miso};
+    //     end
+    // end
 
-    always @(negedge sclk) begin
-        if (state == STATE_READ_ADDR) begin
-            // Shift out the bits on the falling edge of the clock.
-            spi_tx_buffer   <= (spi_tx_buffer << 1);
+    // always @(negedge sclk) begin
+    //     if (state == STATE_READ_ADDR) begin
+    //         // Shift out the bits on the falling edge of the clock.
+    //         spi_tx_buffer   <= (spi_tx_buffer << 1);
 
-            spi_clk_counter <= spi_clk_counter + 1;
-            if (spi_clk_counter + 1 >= 64) begin
-                spi_state <= SPI_STATE_CLK_DELAY_DISABLE_CS;
-            end
-        end
-    end
+    //         spi_clk_counter <= spi_clk_counter + 1;
+    //         if (spi_clk_counter + 1 >= 64) begin
+    //             spi_state <= SPI_STATE_CLK_DELAY_DISABLE_CS;
+    //         end
+    //     end
+    // end
 
     // MSB is transmitted first, need to check if high impedance state is needed
     assign mosi = (state == STATE_READ_ADDR && cs == 0) ?

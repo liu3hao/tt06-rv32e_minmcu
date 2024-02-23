@@ -5,9 +5,6 @@
 
 `define default_netname none
 
-localparam int STATE_FETCH_DATA = 0;
-localparam int STATE_PARSE_DATA = 1;
-
 module tt_um_rv32e_cpu (
     input  wire [7:0] ui_in,    // Dedicated inputs
     output wire [7:0] uo_out,   // Dedicated outputs
@@ -25,6 +22,9 @@ module tt_um_rv32e_cpu (
     input  wire       clk,      // clock
     input  wire       rst_n     // reset_n - low to reset
 );
+
+    localparam STATE_FETCH_DATA = 2'b00;
+    localparam STATE_PARSE_DATA = 2'b01;
 
     reg [31:0] prog_counter;
 
@@ -66,7 +66,7 @@ module tt_um_rv32e_cpu (
         end else begin
             if (state == STATE_FETCH_DATA) begin
                 if (fetch_done == 0) begin
-                    fetch_address <= prog_counter;
+                    fetch_address <= prog_counter[23:0];
                     start_fetch <= 1;
                 end else begin
                     // Got something!
