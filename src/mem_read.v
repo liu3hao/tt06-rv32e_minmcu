@@ -94,6 +94,7 @@ module mem_read (
                 // Stop everything and go back to the initial state
                 state <= STATE_START;
                 spi_state <= SPI_STATE_CS_CLK_IDLE;
+                prev_sclk <= 0;
             end
         end
     end
