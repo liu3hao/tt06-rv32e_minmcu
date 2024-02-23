@@ -13,37 +13,31 @@ module tb ();
     end
 
     // Wire up the inputs and outputs:
-    reg  clk;
-    reg  rst_n;
-    reg  ena;
+    reg clk;
+    reg rst_n;
+    reg ena;
 
-    reg  sclk;
-    reg  miso;
-    wire mosi;
-    wire cs;
+    reg [7:0] ui_in;
+    reg [7:0] uio_in;
+    wire [7:0] uo_out;
+    wire [7:0] uio_out;
+    wire [7:0] uio_oe;
 
     // Replace tt_um_example with your module name:
-    rv32e_cpu cpu1 (
+    tt_um_rv32e_cpu cpu1 (
 
         // Include power ports for the Gate Level test:
 `ifdef GL_TEST
         .VPWR(1'b1),
         .VGND(1'b0),
 `endif
-
-        .miso(miso),
-        .mosi(mosi),
-        .cs  (cs),
-        .sclk(sclk),
-
-
-        //   .ui_in  (ui_in),    // Dedicated inputs
-        //   .uo_out (uo_out),   // Dedicated outputs
-        //   .uio_in (uio_in),   // IOs: Input path
-        //   .uio_out(uio_out),  // IOs: Output path
-        //   .uio_oe (uio_oe),   // IOs: Enable path (active high: 0=input, 1=output)
-        .ena  (ena),   // enable - goes high when design is selected
-        .clk  (clk),   // clock
+        .ui_in(ui_in),  // Dedicated inputs
+        .uo_out(uo_out),  // Dedicated outputs
+        .uio_in(uio_in),  // IOs: Input path
+        .uio_out(uio_out),  // IOs: Output path
+        .uio_oe(uio_oe),  // IOs: Enable path (active high: 0=input, 1=output)
+        .ena(ena),  // enable - goes high when design is selected
+        .clk(clk),  // clock
         .rst_n(rst_n)  // not reset
     );
 

@@ -8,18 +8,18 @@
 localparam int STATE_FETCH_DATA = 0;
 localparam int STATE_PARSE_DATA = 1;
 
-module rv32e_cpu (
-    // input  wire [7:0] ui_in,    // Dedicated inputs
-    // output wire [7:0] uo_out,   // Dedicated outputs
+module tt_um_rv32e_cpu (
+    input  wire [7:0] ui_in,    // Dedicated inputs
+    output wire [7:0] uo_out,   // Dedicated outputs
 
-    // input  wire [7:0] uio_in,   // IOs: Input path
-    // output wire [7:0] uio_out,  // IOs: Output path
-    // output wire [7:0] uio_oe,   // IOs: Enable path (active high: 0=input, 1=output)
+    input  wire [7:0] uio_in,   // IOs: Input path
+    output wire [7:0] uio_out,  // IOs: Output path
+    output wire [7:0] uio_oe,   // IOs: Enable path (active high: 0=input, 1=output)
     
-    input wire miso,
-    output wire sclk,
-    output wire mosi,
-    output wire cs,
+    // input wire miso,
+    // output wire sclk,
+    // output wire mosi,
+    // output wire cs,
     
     input  wire       ena,      // will go high when the design is enabled
     input  wire       clk,      // clock
@@ -35,6 +35,15 @@ module rv32e_cpu (
 
     wire fetch_done;
     reg start_fetch;
+
+    assign miso = ui_in[0];
+    assign sclk = uo_out[0];
+    assign mosi = uo_out[1];
+    assign cs = uo_out[2];
+
+    // Not used yet.
+    assign uio_oe = 0;
+    assign uio_out = 0;
 
     mem_read mem_read1 (
         .miso(miso),
