@@ -126,14 +126,16 @@ module tt_um_rv32e_cpu (
 
     alu alu1 (
         .value1(rs1),
-        .value2( opcode == I_TYPE_INSTR ?
-            {i_type_imm[11] == 1'b1 ? 20'hfffff : 20'd0,
-            i_type_imm}              // Sign extend this value
-            : rs2),
+        .value2(
+            (opcode == I_TYPE_INSTR && r_type_func3 != 3'b001 && r_type_func3 != 3'b101) ?
+                {i_type_imm[11] == 1'b1 ? 20'hfffff : 20'd0, i_type_imm}              // Sign extend this value
+                : (opcode == I_TYPE_INSTR && (r_type_func3 == 3'b001 || r_type_func3 == 3'b101)) ?
+                    r_type_rs2
+                : rs2),
 
         .func_type(r_type_func3),
-        .f7_bit( opcode == I_TYPE_INSTR ? 1'b0 :
-                    (r_type_func7 && 7'b0100000 ? 1'b1 : 1'b0)
+        .f7_bit( (opcode == I_TYPE_INSTR && r_type_func3 != 3'b001 && r_type_func3 != 3'b101) ? 1'b0
+                    : (r_type_func7 && 7'b0100000 ? 1'b1 : 1'b0)
         ),
         .result(alu_result)
     );
