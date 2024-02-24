@@ -14,6 +14,8 @@ TOPLEVEL_LANG ?= verilog
 SRC_DIR = $(PWD)/../src
 PROJECT_SOURCES = project.v
 PROJECT_SOURCES += mem_read.v
+PROJECT_SOURCES += registers.v
+PROJECT_SOURCES += alu.v
 
 ifneq ($(GATES),yes)
 

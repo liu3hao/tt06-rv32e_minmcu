@@ -1,0 +1,3 @@
+src/project.v
+src/mem_read.v
+src/registers.v

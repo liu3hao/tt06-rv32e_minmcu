@@ -17,6 +17,8 @@ project:
   source_files:        
     - "project.v"
     - "mem_read.v"
+    - "registers.v"
+    - "alu.v"
 
 # The pinout of your project. Leave unused pins blank. DO NOT delete or add any pins.
 pinout:

@@ -99,25 +99,6 @@ module mem_read (
         end
     end
 
-    // always @(posedge sclk) begin
-    //     if (state == STATE_READ_ADDR) begin
-    //         // Read MISO on the rising edge of the clock
-    //         spi_rx_buffer <= (spi_rx_buffer << 1) | {31'b0, miso};
-    //     end
-    // end
-
-    // always @(negedge sclk) begin
-    //     if (state == STATE_READ_ADDR) begin
-    //         // Shift out the bits on the falling edge of the clock.
-    //         spi_tx_buffer   <= (spi_tx_buffer << 1);
-
-    //         spi_clk_counter <= spi_clk_counter + 1;
-    //         if (spi_clk_counter + 1 >= 64) begin
-    //             spi_state <= SPI_STATE_CLK_DELAY_DISABLE_CS;
-    //         end
-    //     end
-    // end
-
     // MSB is transmitted first, need to check if high impedance state is needed
     assign mosi = (state == STATE_READ_ADDR && cs == 0) ?
                     spi_tx_buffer[SPI_TX_BUFFER_SIZE-1] : 0;
@@ -128,7 +109,7 @@ module mem_read (
 endmodule
 
 module spi_clk #(
-    parameter int size = 4
+    parameter int size = 2
 ) (
     input wire [1:0] spi_clk_state,
     input wire refclk,
@@ -157,7 +138,7 @@ module spi_clk #(
         end
     end
 
-    assign outclk = (spi_clk_state == SPI_STATE_ENABLE_CS_DELAY_CLK 
+    assign outclk = (spi_clk_state == SPI_STATE_ENABLE_CS_DELAY_CLK
                         && cs_delay > 4 && !counter[size-1]);
 
     assign cs = !(spi_clk_state == SPI_STATE_ENABLE_CS_DELAY_CLK ||
