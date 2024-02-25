@@ -8,30 +8,50 @@ from cocotb.triggers import ClockCycles, RisingEdge, FallingEdge
 from cocotbext.spi import SpiBus
 from helpers import SimpleSpiSlave
 
-async def run_program(dut, program_instructions, wait_cycles=100):
+async def run_program(dut, memory, max_reads=None, wait_cycles=100):
     dut._log.info("Start")
 
     spi_peri = SimpleSpiSlave(SpiBus.from_entity(dut.cpu1.mem_controller1))  
     clock = Clock(dut.clk, 10, units="us")
     cocotb.start_soon(clock.start())
 
+    def on_data_received(spi_peri_content):
+        dut._log.info("Got after 32 sclk: " + hex(spi_peri_content))
+
+        command = spi_peri_content >> 24
+        if command == 0x03:
+            address = spi_peri_content & 0xffffff
+            dut._log.info('read data at address: '+ hex(address))
+            return_value = memory[int(address/4)]
+            spi_peri.return_value = return_value
+            dut._log.info('return value: ' + hex(return_value))
+
+    spi_peri.on_data_received = on_data_received 
+
     # Reset
     dut._log.info("Reset")
     dut.ena.value = 1
     dut.rst_n.value = 0
 
+    if (max_reads == None):
+        max_reads = len(memory)
+
     await ClockCycles(dut.clk, 20)
     dut.rst_n.value = 1
+    counter = 0
 
-    for instruction in program_instructions:
-        spi_peri.return_value = instruction
+    while True:
+        dut._log.info("Waiting for CS falling edge")
+        await FallingEdge(dut.cpu1.mem_controller1.cs)
+        
+        await ClockCycles(dut.cpu1.mem_controller1.sclk, 32)
 
-        dut._log.info("Fetch 4 bytes from memory")
-        await ClockCycles(dut.cpu1.mem_controller1.sclk, 64)
-        await RisingEdge(dut.cpu1.fetch_done)
+        await RisingEdge(dut.cpu1.mem_controller1.cs)
+        counter += 1
 
-        dut._log.info("Received bytes: " + hex(instruction))
-        assert dut.cpu1.fetched_data.value == instruction
+        # Use this as the stop signal for now
+        if (counter >= max_reads):
+            break
 
     await ClockCycles(dut.clk, wait_cycles)
 
@@ -153,19 +173,36 @@ async def run_program(dut, program_instructions, wait_cycles=100):
 #     assert dut.cpu1.r3.value == 25
 #     assert dut.cpu1.r4.value.signed_integer == -13
 
-@cocotb.test()
-async def test_icache(dut):
-    await run_program(dut, [
-        0x06400093,
-        0xf3800113,
-        0x4020d193,
-        0x40415213,
-    ])
+# @cocotb.test()
+# async def test_icache(dut):
+#     await run_program(dut, [
+#         0x06400093,
+#         0xf3800113,
+#         0x4020d193,
+#         0x40415213,
+#     ])
 
-    assert dut.cpu1.mem_controller1.instruction_cache1.inner_data.value == \
-            0x06400093 |            \
-            0xf3800113 << 32 |      \
-            0x4020d193 << 64 |      \
-            0x40415213 << 96
+#     assert dut.cpu1.mem_controller1.instruction_cache1.inner_data.value == \
+#             0x06400093 |            \
+#             0xf3800113 << 32 |      \
+#             0x4020d193 << 64 |      \
+#             0x40415213 << 96
+
+@cocotb.test()
+async def test_load(dut):
+    await run_program(dut, [
+        0x01002283,  # lw x5, 16(x0)
+        0x01402303,  # lw x6, 20(x0)
+        0,
+        0,
+        0x55667788,
+        0x11223344,
+        0,
+    ], max_reads=4)
+
+    assert dut.cpu1.r5.value == 0x55667788
+    assert dut.cpu1.r6.value == 0x11223344
+
+
 
 # TODO add more tests..

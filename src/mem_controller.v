@@ -5,7 +5,13 @@ module mem_controller #(parameter size=32) (
     output wire cs,
 
     input  wire [23:0] target_address,
+    output wire [31:0] fetched_instruction,
     output wire [31:0] fetched_data,
+
+    input wire is_data_fetch,
+
+    input wire [31:0] data_read_address,
+    output wire [31:0] data_read_value,
 
     input  wire start_fetch,
     output wire fetch_done,
@@ -14,6 +20,9 @@ module mem_controller #(parameter size=32) (
     input wire rst_n  // global reset signal reset_n - low to reset
 );
 
+    wire [31:0] target_data;
+    reg fetch_type;   // 0 - instruction, 1 - data
+
     mem_read mem_read1 (
         .miso(miso),
         .sclk(sclk),
@@ -21,7 +30,7 @@ module mem_controller #(parameter size=32) (
         .cs  (cs),
 
         .target_address(target_address),
-        .fetched_data  (fetched_data),
+        .target_data(target_data),
 
         .start_fetch(start_fetch),
         .fetch_done (fetch_done),
@@ -30,16 +39,31 @@ module mem_controller #(parameter size=32) (
         .rst_n(rst_n)
     );
 
+    assign fetched_instruction = (is_data_fetch == 0) ? target_data : 32'd0;
+    assign fetched_data = (is_data_fetch == 1) ? target_data : 32'd0;
+
     wire icache_valid;
     wire [size-1:0] icache_data;
-
     wire icache_write_data;
+    assign icache_write_data = (rst_n == 1
+                                && is_data_fetch == 0
+                                && fetch_done == 1
+                                && icache_valid ==0);
+
+    wire dcache_valid;
+    wire [size-1:0] dcache_data;
+
+    wire dcache_write_data;
+    assign dcache_write_data = (rst_n == 1
+                                && is_data_fetch == 1
+                                && fetch_done == 1
+                                && dcache_valid == 0);
 
     cache instruction_cache1 (
         .address({8'b0, target_address}),
 
-        .write_data (icache_write_data),
-        .write_value(fetched_data),
+        .write_data (dcache_write_data),
+        .write_value(target_data),
 
         .valid(icache_valid),
         .data (icache_data),
@@ -48,7 +72,18 @@ module mem_controller #(parameter size=32) (
         .rst_n(rst_n)
     );
 
-    assign icache_write_data = (rst_n == 1 && fetch_done == 1 && icache_valid ==0);
+    cache data_cache1 (
+        .address({8'b0, target_address}),
+
+        .write_data (dcache_write_data),
+        .write_value(target_data),
+
+        .valid(dcache_valid),
+        .data (dcache_data),
+
+        .clk  (clk),
+        .rst_n(rst_n)
+    );
 
 endmodule
 
@@ -79,7 +114,9 @@ module cache #(
     reg [7:0] inner_valid;
 
     wire [ignored_bits-1:0] block_index;
-    assign block_index = address[block_bits + ignored_bits:ignored_bits]; // last 2 bits can be ignored.
+
+    // last 2 bits can be ignored.
+    assign block_index = address[block_bits + ignored_bits:ignored_bits];
 
     wire [tag_size-1:0] tag_compare;
     assign tag_compare = address[size-1:(block_bits + ignored_bits)];

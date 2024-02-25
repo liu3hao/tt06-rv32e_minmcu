@@ -20,6 +20,9 @@ class SimpleSpiSlave(SpiSlaveBase):
         await self.idle.wait()
         return self.content
 
+    def on_data_received(self, value):
+        pass
+
     async def _transaction(self, frame_start, frame_end):
         await frame_start
         self.idle.clear()
@@ -28,6 +31,8 @@ class SimpleSpiSlave(SpiSlaveBase):
 
         await RisingEdge(self._sclk)
         self.content = (self.content << 1) | int(self._mosi.value)
+
+        self.on_data_received(self.content)
         
         # this is needed because _shift does not work so well for CPOL=0, CPHA=0
         await FallingEdge(self._sclk)

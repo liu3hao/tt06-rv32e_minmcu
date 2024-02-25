@@ -1,12 +1,12 @@
 # Makefile
 # See https://docs.cocotb.org/en/stable/quickstart.html for more info
 
-INSTALL_COCOTBEXT_SPI := $(shell \
-	if ! pip show cocotbext-spi >/dev/null 2>&1; then \
-        echo "Package 'cocotbext-spi' is not installed. Installing..."; \
-        pip install cocotbext-spi==0.4.0; \
-    fi \
-)
+# INSTALL_COCOTBEXT_SPI := $(shell \
+# 	if ! pip show cocotbext-spi >/dev/null 2>&1; then \
+#         echo "Package 'cocotbext-spi' is not installed. Installing..."; \
+#         pip install cocotbext-spi==0.4.0; \
+#     fi \
+# )
 
 # defaults
 SIM ?= icarus
@@ -14,9 +14,9 @@ TOPLEVEL_LANG ?= verilog
 SRC_DIR = $(PWD)/../src
 PROJECT_SOURCES = project.v
 PROJECT_SOURCES += mem_read.v
+PROJECT_SOURCES += mem_controller.v
 PROJECT_SOURCES += registers.v
 PROJECT_SOURCES += alu.v
-PROJECT_SOURCES += mem_controller.v
 
 ifneq ($(GATES),yes)
 

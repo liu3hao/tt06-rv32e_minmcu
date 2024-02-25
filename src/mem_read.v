@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-`define default_netname none
-
 localparam STATE_START = 0;
 localparam STATE_READ_ADDR = 1;
 localparam STATE_READ_ADDR_DONE = 2;
@@ -22,9 +20,9 @@ module mem_read (
     output wire cs,
 
     input  wire [23:0] target_address,
-    output wire [31:0] fetched_data,
+    output wire [31:0] target_data,
 
-    input  wire start_fetch,
+    input  wire start_fetch,    // Toggle from 0 to 1 to start fetch
     output wire fetch_done,
 
     input wire clk,   // system clock
@@ -104,7 +102,8 @@ module mem_read (
                     spi_tx_buffer[SPI_TX_BUFFER_SIZE-1] : 0;
 
     assign fetch_done = start_fetch && state == STATE_READ_ADDR_DONE;
-    assign fetched_data = (state == STATE_READ_ADDR_DONE) ? spi_rx_buffer : 0;
+    assign target_data = (state == STATE_READ_ADDR_DONE && start_fetch == 1)
+                            ? spi_rx_buffer : 0;
 
 endmodule
 
