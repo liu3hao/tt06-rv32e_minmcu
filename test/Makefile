@@ -16,6 +16,7 @@ PROJECT_SOURCES = project.v
 PROJECT_SOURCES += mem_read.v
 PROJECT_SOURCES += registers.v
 PROJECT_SOURCES += alu.v
+PROJECT_SOURCES += mem_controller.v
 
 ifneq ($(GATES),yes)
 

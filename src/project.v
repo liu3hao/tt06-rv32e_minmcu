@@ -7,6 +7,7 @@
 
 localparam I_TYPE_INSTR = 7'h13;
 localparam R_TYPE_INSTR = 7'h33;
+localparam I_TYPE_LOAD_INSTR = 7'h03;
 
 module tt_um_rv32e_cpu (
     input  wire [7:0] ui_in,    // Dedicated inputs
@@ -21,6 +22,11 @@ module tt_um_rv32e_cpu (
     input  wire       rst_n     // reset_n - low to reset
 );
 
+    // Not used yet.
+    assign uio_oe = 0;
+    assign uio_out = 0;
+    assign uo_out[7:3] = 0;
+
     localparam STATE_FETCH_DATA = 2'b00;
     localparam STATE_PARSE_DATA = 2'b01;
 
@@ -34,15 +40,10 @@ module tt_um_rv32e_cpu (
     wire fetch_done;
     reg start_fetch;
 
-    // Not used yet.
-    assign uio_oe = 0;
-    assign uio_out = 0;
-
-    assign uo_out[7:3] = 0;
-
     reg [31:0] current_instruction;
+    wire [31:0] r0, r1, r2, r3, r4;
 
-    mem_read mem_read1 (
+    mem_controller mem_controller1 (
         .sclk(uo_out[0]),
         .mosi(uo_out[1]),
         .cs(uo_out[2]),
@@ -57,8 +58,6 @@ module tt_um_rv32e_cpu (
         .clk(clk),
         .rst_n(rst_n)
     );
-
-    wire [31:0] r0, r1, r2, r3, r4;
 
     registers reg1 (
         .r0(r0),

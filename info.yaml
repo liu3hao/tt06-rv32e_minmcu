@@ -17,6 +17,7 @@ project:
   source_files:        
     - "project.v"
     - "mem_read.v"
+    - "mem_controller.v"
     - "registers.v"
     - "alu.v"
 
