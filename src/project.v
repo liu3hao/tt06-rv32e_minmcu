@@ -162,6 +162,7 @@ module tt_um_rv32e_cpu (
             state <= STATE_FETCH_DATA;
             prog_counter <= 0;
             current_instruction <= 0;
+            fetch_address <= 0;
 
         end else begin
             if (state == STATE_FETCH_DATA) begin
