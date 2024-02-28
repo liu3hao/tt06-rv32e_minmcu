@@ -12,9 +12,6 @@ module mem_controller #(parameter size=32) (
 
     input wire is_data_fetch,
 
-    input wire [31:0] data_read_address,
-    output wire [31:0] data_read_value,
-
     input  wire start_request,
     output wire request_done,
 
