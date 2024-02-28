@@ -19,6 +19,8 @@ module mem_read (
     output wire mosi,
     output wire cs,
 
+    input wire [3:0] read_bytes,
+
     input  wire [23:0] target_address,
     output wire [31:0] target_data,
 
@@ -36,6 +38,8 @@ module mem_read (
     reg [SPI_TX_BUFFER_SIZE - 1:0] spi_rx_buffer;
 
     reg [1:0] spi_state;  // SPI CLK and CS state
+
+    reg [3:0] tx_bytes;
 
     spi_clk clk1 (
         .spi_clk_state(spi_state),
@@ -62,7 +66,9 @@ module mem_read (
                     state <= STATE_READ_ADDR;
                     spi_clk_counter <= 0;
                     spi_state <= SPI_STATE_ENABLE_CS_DELAY_CLK;
+
                     spi_tx_buffer <= {8'h03, target_address};
+                    tx_bytes <= 4;
 
                 end else if (state == STATE_READ_ADDR) begin
 
@@ -71,12 +77,13 @@ module mem_read (
                     if (sclk == 1 && prev_sclk == 0) begin
                         // Read MISO on the rising edge of the clock
                         spi_rx_buffer <= (spi_rx_buffer << 1) | {31'b0, miso};
+
                     end else if (sclk == 0 && prev_sclk == 1) begin
                         // Shift out the bits on the falling edge of the clock.
                         spi_tx_buffer   <= (spi_tx_buffer << 1);
 
                         spi_clk_counter <= spi_clk_counter + 1;
-                        if (spi_clk_counter + 1 >= 64) begin
+                        if (spi_clk_counter + 1 >= (tx_bytes + read_bytes) * 8) begin
                             spi_state <= SPI_STATE_CLK_DELAY_DISABLE_CS;
                         end
                     end
@@ -108,7 +115,7 @@ module mem_read (
 endmodule
 
 module spi_clk #(
-    parameter int size = 2
+    parameter size = 2
 ) (
     input wire [1:0] spi_clk_state,
     input wire refclk,

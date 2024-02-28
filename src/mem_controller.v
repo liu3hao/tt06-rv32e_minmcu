@@ -4,6 +4,8 @@ module mem_controller #(parameter size=32) (
     output wire mosi,
     output wire cs,
 
+    input wire [3:0] read_bytes,
+
     input  wire [23:0] target_address,
     output wire [31:0] fetched_instruction,
     output wire [31:0] fetched_data,
@@ -13,15 +15,19 @@ module mem_controller #(parameter size=32) (
     input wire [31:0] data_read_address,
     output wire [31:0] data_read_value,
 
-    input  wire start_fetch,
-    output wire fetch_done,
+    input  wire start_request,
+    output wire request_done,
 
     input wire clk,   // system clock
     input wire rst_n  // global reset signal reset_n - low to reset
 );
+    wire [31:0] mem_read_data;  // data fetched from memory
 
-    wire [31:0] target_data;
-    reg fetch_type;   // 0 - instruction, 1 - data
+    reg prev_start_request;
+    reg use_cached_data;
+
+    reg mem_read_start_request;
+    wire mem_read_request_done;
 
     mem_read mem_read1 (
         .miso(miso),
@@ -29,25 +35,58 @@ module mem_controller #(parameter size=32) (
         .mosi(mosi),
         .cs  (cs),
 
-        .target_address(target_address),
-        .target_data(target_data),
+        .read_bytes(read_bytes),
 
-        .start_fetch(start_fetch),
-        .fetch_done (fetch_done),
+        .target_address(target_address),
+        .target_data(mem_read_data),
+
+        .start_fetch(mem_read_start_request),
+        .fetch_done (mem_read_request_done),
 
         .clk  (clk),
         .rst_n(rst_n)
     );
 
-    assign fetched_instruction = (is_data_fetch == 0) ? target_data : 32'd0;
-    assign fetched_data = (is_data_fetch == 1) ? target_data : 32'd0;
+    always @ (posedge clk) begin
+        if (rst_n == 0) begin
+            prev_start_request <= 0;
+            use_cached_data <= 0;
+            mem_read_start_request <= 0;
+
+        end else begin
+            prev_start_request <= start_request;
+            if (start_request == 1 && prev_start_request == 0) begin
+                if (is_data_fetch && dcache_valid == 1) begin
+                    // If data is available from the cache, then use it
+                    use_cached_data <= 1;
+                end else begin
+                    use_cached_data <= 0;
+                    mem_read_start_request <= 1;
+                end
+            end else if (start_request == 0) begin
+                prev_start_request <= 0;
+                mem_read_start_request <= 0;
+            end
+        end
+    end
+
+    assign fetched_instruction = (start_request == 1 && is_data_fetch == 0) ? mem_read_data : 32'd0;
+    assign fetched_data = (start_request == 1 && is_data_fetch == 1 && dcache_valid == 1) ? dcache_data
+                            : (start_request == 1 && is_data_fetch == 1 && dcache_valid == 0) ? mem_read_data
+                            : 32'd0;
+
+    assign request_done = start_request == 1 && (
+                            (is_data_fetch == 0 && mem_read_request_done == 1) ||
+                            (is_data_fetch == 1 && mem_read_request_done == 1) ||
+                            (is_data_fetch == 1 && dcache_valid == 1)
+                            );
 
     wire icache_valid;
     wire [size-1:0] icache_data;
     wire icache_write_data;
     assign icache_write_data = (rst_n == 1
                                 && is_data_fetch == 0
-                                && fetch_done == 1
+                                && request_done == 1
                                 && icache_valid ==0);
 
     wire dcache_valid;
@@ -56,14 +95,14 @@ module mem_controller #(parameter size=32) (
     wire dcache_write_data;
     assign dcache_write_data = (rst_n == 1
                                 && is_data_fetch == 1
-                                && fetch_done == 1
+                                && request_done == 1
                                 && dcache_valid == 0);
 
     cache instruction_cache1 (
         .address({8'b0, target_address}),
 
         .write_data (dcache_write_data),
-        .write_value(target_data),
+        .write_value(mem_read_data),
 
         .valid(icache_valid),
         .data (icache_data),
@@ -76,7 +115,7 @@ module mem_controller #(parameter size=32) (
         .address({8'b0, target_address}),
 
         .write_data (dcache_write_data),
-        .write_value(target_data),
+        .write_value(mem_read_data),
 
         .valid(dcache_valid),
         .data (dcache_data),
@@ -113,10 +152,10 @@ module cache #(
     reg [(tag_size * 8 - 1): 0] inner_tags;
     reg [7:0] inner_valid;
 
-    wire [ignored_bits-1:0] block_index;
+    wire [block_bits-1:0] block_index;
 
     // last 2 bits can be ignored.
-    assign block_index = address[block_bits + ignored_bits:ignored_bits];
+    assign block_index = address[block_bits + ignored_bits -1 :ignored_bits];
 
     wire [tag_size-1:0] tag_compare;
     assign tag_compare = address[size-1:(block_bits + ignored_bits)];

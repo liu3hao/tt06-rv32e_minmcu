@@ -46,19 +46,6 @@ async def run_program(dut, memory, max_reads=None, wait_cycles=100):
     clock = Clock(dut.clk, 10, units="us")
     cocotb.start_soon(clock.start())
 
-    def on_data_received(spi_peri_content):
-        dut._log.info("Got after 32 sclk: " + hex(spi_peri_content))
-
-        command = spi_peri_content >> 24
-        if command == 0x03:
-            address = spi_peri_content & 0xffffff
-            dut._log.info('read data at address: '+ hex(address))
-            return_value = memory[int(address/4)]
-            spi_peri.return_value = return_value
-            dut._log.info('return value: ' + hex(return_value))
-
-    spi_peri.on_data_received = on_data_received 
-
     # Reset
     dut._log.info("Reset")
     dut.ena.value = 1
@@ -215,21 +202,40 @@ async def test_srai_sra(dut):
 #             0x4020d193 << 64 |      \
 #             0x40415213 << 96
 
-# @cocotb.test()
-# async def test_load(dut):
-#     await run_program(dut, [
-#         0x01002283,  # lw x5, 16(x0)
-#         0x01402303,  # lw x6, 20(x0)
-#         0,
-#         0,
-#         0x55667788,
-#         0x11223344,
-#         0,
-#     ], max_reads=4)
+@cocotb.test()
+async def test_load(dut):
+    await run_program(dut, [
+        0x01002283,  # lw x5, 16(x0)
+        0x01402303,  # lw x6, 20(x0)
+        0x01100383,  # lb x7, 17(x0)
+        0x01000403,  # lb x8, 16(x0)
+        0x55997788,
+        0x11223344,
+        0,
+    ], max_reads=8)
 
-#     assert dut.cpu1.r5.value == 0x55667788
-#     assert dut.cpu1.r6.value == 0x11223344
+    assert dut.cpu1.r5.value == 0x55997788
+    assert dut.cpu1.r6.value == 0x11223344
+    assert dut.cpu1.r7.value == 0xffffff99
+    assert dut.cpu1.r8.value == 0x55
 
 
+@cocotb.test()
+async def test_load_lb_lbu(dut):
+    await run_program(dut, [
+        0x02100283,  # lb x5, 33(x0)
+        0x02104303,  # lbu x6, 33(x0)
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0x55997788,
+        0x11223344
+    ], max_reads=5)
+
+    assert dut.cpu1.r5.value == 0xffffff99
+    assert dut.cpu1.r6.value == 0x99
 
 # TODO add more tests..
