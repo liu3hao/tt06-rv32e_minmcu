@@ -19,7 +19,7 @@ module mem_read (
     output wire mosi,
     output wire cs,
 
-    input wire [3:0] read_bytes,
+    input wire [2:0] read_bytes,
 
     input  wire [23:0] target_address,
     output wire [31:0] target_data,
@@ -34,12 +34,13 @@ module mem_read (
     // Determines the state of the mem fetch module.
     reg [1:0] state;
 
+    // fetch maximum up to 4 bytes
     reg [SPI_TX_BUFFER_SIZE - 1:0] spi_tx_buffer;
     reg [SPI_TX_BUFFER_SIZE - 1:0] spi_rx_buffer;
 
     reg [1:0] spi_state;  // SPI CLK and CS state
 
-    reg [3:0] tx_bytes;
+    reg [2:0] tx_bytes;
 
     spi_clk clk1 (
         .spi_clk_state(spi_state),
@@ -48,7 +49,8 @@ module mem_read (
         .cs(cs)
     );
 
-    reg [7:0] spi_clk_counter;
+    // Maximum 4 bytes to write, 4 bytes to read
+    reg [6:0] spi_clk_counter;
 
     reg prev_sclk;
 

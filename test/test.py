@@ -38,8 +38,17 @@ def prepare_bytes(memory_array):
 
     return bytes_array
 
-async def run_program(dut, memory, max_reads=None, wait_cycles=100):
+async def run_program(dut, raw='', memory=None, max_reads=None, wait_cycles=100):
     dut._log.info("Run program")
+
+    if raw != '':
+        memory = []
+        lines = raw.splitlines()
+        lines = [line.strip() for line in lines]
+        for line in lines:
+            if line != '':
+                memory.append(int(line, 16))
+
     bytes_array = prepare_bytes(memory)
 
     spi_peri = SimpleSpiSlave(SpiBus.from_entity(dut.cpu1.mem_controller1), bytes_array)  
@@ -69,124 +78,238 @@ async def run_program(dut, memory, max_reads=None, wait_cycles=100):
 
     await ClockCycles(dut.clk, wait_cycles)
 
-# @cocotb.test()
-# async def test_simple(dut):
-#     dut._log.info("Start")
-
-#     spi_peri = SimpleSpiSlave(SpiBus.from_entity(dut.cpu1.mem_read1))
-#     spi_peri.return_value = 0x11223344
-  
-#     clock = Clock(dut.clk, 10, units="us")
-#     cocotb.start_soon(clock.start())
-
-#     # Reset
-#     dut._log.info("Reset")
-#     dut.ena.value = 1
-#     dut.rst_n.value = 0
-
-#     await ClockCycles(dut.clk, 20)
-#     dut.rst_n.value = 1
-
-#     dut._log.info("Fetch first 4 bytes")
-#     await ClockCycles(dut.cpu1.mem_read1.sclk, 64)
-
-#     await RisingEdge(dut.cpu1.fetch_done)
-#     assert dut.cpu1.fetched_data.value == 0x11223344
-#     spi_peri.return_value = 0x55665566
-
-#     await FallingEdge(dut.cpu1.mem_read1.cs)
-
-#     dut._log.info("Fetch next 4 bytes")
-#     await ClockCycles(dut.cpu1.mem_read1.sclk, 64)
-
-#     await RisingEdge(dut.cpu1.fetch_done)
-#     assert dut.cpu1.fetched_data.value == 0x55665566
-
-
 @cocotb.test()
 async def test_addi_add(dut):
-    await run_program(dut, [
-        0x3e800093,
-        0x7d008113,
-        0xc1800193,
-        0x00310233
-    ])
+    # addi x1, x1, 1000
+    # addi x2, x1, 2000
+    # addi x3, x3, -1000
+    # add x4, x2, x3
 
-    assert dut.cpu1.r1.value == 1000
-    assert dut.cpu1.r2.value == 3000
-    assert dut.cpu1.r3.value.signed_integer == -1000
-    assert dut.cpu1.r4.value == 2000
+    await run_program(dut, '''
+        3e808093
+        7d008113
+        c1818193
+        00310233
+        ''')
+
+    assert dut.cpu1.reg1.r1.value == 1000
+    assert dut.cpu1.reg1.r2.value == 3000
+    assert dut.cpu1.reg1.r3.value.signed_integer == -1000
+    assert dut.cpu1.reg1.r4.value == 2000
 
 @cocotb.test()
 async def test_slt(dut):
-    await run_program(dut, [
-        0xc1800093,
-        0xe0c00113,
-        0x0020a1b3,
-        0x00112233
-    ])
+    # addi x1, x1, -1000
+    # addi x2, x2, -500
+    # slt x3, x1, x2
+    # slt x4, x2, x1
 
-    assert dut.cpu1.r1.value.signed_integer == -1000
-    assert dut.cpu1.r2.value.signed_integer == -500
-    assert dut.cpu1.r3.value == 1
-    assert dut.cpu1.r4.value == 0
+    await run_program(dut, '''
+        c1808093
+        e0c10113
+        0020a1b3
+        00112233
+    ''')
+
+    assert dut.cpu1.reg1.r1.value.signed_integer == -1000
+    assert dut.cpu1.reg1.r2.value.signed_integer == -500
+    assert dut.cpu1.reg1.r3.value == 1
+    assert dut.cpu1.reg1.r4.value == 0
 
 @cocotb.test()
 async def test_sltu(dut):
-    await run_program(dut, [
-        0x06400093,
-        0x0c800113,
-        0x0020b1b3,
-        0x00112233
-    ])
+    # addi x1, x1, 100
+    # addi x2, x2, 200
+    # sltu x3, x1, x2
+    # sltu x4, x2, x1
+    await run_program(dut, '''
+        06408093
+        0c810113
+        0020b1b3
+        00113233
+    ''')
 
-    assert dut.cpu1.r1.value == 100
-    assert dut.cpu1.r2.value == 200
-    assert dut.cpu1.r3.value == 1
-    assert dut.cpu1.r4.value == 0
+    assert dut.cpu1.reg1.r1.value == 100
+    assert dut.cpu1.reg1.r2.value == 200
+    assert dut.cpu1.reg1.r3.value == 1
+    assert dut.cpu1.reg1.r4.value == 0
 
 @cocotb.test()
 async def test_xor(dut):
-    await run_program(dut, [
-        0x06400093,
-        0x0c800113,
-        0x0020c1b3,
-        0x00114233
-    ])
+    # addi x1, x1, 100
+    # addi x2, x2, 200
+    # xor x3, x1, x2
+    # xor x4, x2, x1
+    await run_program(dut, '''
+        06408093
+        0c810113
+        0020c1b3
+        00114233
+    ''')
 
-    assert dut.cpu1.r1.value == 100
-    assert dut.cpu1.r2.value == 200
-    assert dut.cpu1.r3.value == 172
-    assert dut.cpu1.r4.value == 172
+    assert dut.cpu1.reg1.r1.value == 100
+    assert dut.cpu1.reg1.r2.value == 200
+    assert dut.cpu1.reg1.r3.value == 172
+    assert dut.cpu1.reg1.r4.value == 172
 
 @cocotb.test()
 async def test_srli_srl(dut):
-    await run_program(dut, [
-        0x06400093,
-        0x0c800113,
-        0x0020d193,
-        0x00415213,
-    ])
+    # addi x1, x1, 100
+    # addi x2, x2, 200
+    # srli x3, x1, 2
+    # srli x4, x2, 4
+    await run_program(dut, '''
+        06408093
+        0c810113
+        0020d193
+        00415213
+        ''')
 
-    assert dut.cpu1.r1.value == 100
-    assert dut.cpu1.r2.value == 200
-    assert dut.cpu1.r3.value == 25
-    assert dut.cpu1.r4.value == 12
+    assert dut.cpu1.reg1.r1.value == 100
+    assert dut.cpu1.reg1.r2.value == 200
+    assert dut.cpu1.reg1.r3.value == 25
+    assert dut.cpu1.reg1.r4.value == 12
 
 @cocotb.test()
 async def test_srai_sra(dut):
-    await run_program(dut, [
-        0x06400093,
-        0xf3800113,
-        0x4020d193,
-        0x40415213,
-    ])
+    # addi x1, x1, 100
+    # addi x2, x2, -200
+    # srai x3, x1, 2
+    # srai x4, x2, 4
+    await run_program(dut, '''
+        06408093
+        f3810113
+        4020d193
+        40415213
+        ''')
 
-    assert dut.cpu1.r1.value == 100
-    assert dut.cpu1.r2.value.signed_integer == -200
-    assert dut.cpu1.r3.value == 25
-    assert dut.cpu1.r4.value.signed_integer == -13
+    assert dut.cpu1.reg1.r1.value == 100
+    assert dut.cpu1.reg1.r2.value.signed_integer == -200
+    assert dut.cpu1.reg1.r3.value == 25
+    assert dut.cpu1.reg1.r4.value.signed_integer == -13
 
+@cocotb.test()
+async def test_ori(dut):
+    # addi x1, x1, 100
+    # addi x2, x2, 7
+    # ori x3, x1, 20
+    # ori x4, x2, 1
+
+    await run_program(dut, '''
+        06408093
+        00710113
+        0140e193
+        00116213
+                      ''')
+
+    assert dut.cpu1.reg1.r1.value == 100
+    assert dut.cpu1.reg1.r2.value == 7
+    assert dut.cpu1.reg1.r3.value == 116
+    assert dut.cpu1.reg1.r4.value == 7
+
+@cocotb.test()
+async def test_andi(dut):
+    # addi x1, x1, 20
+    # andi x2, x1, 0xf0
+    # and x3, x1, x2
+
+    await run_program(dut, '''
+        01408093
+        0f00f113
+        0020f1b3
+        ''')
+
+    assert dut.cpu1.reg1.r1.value == 20
+    assert dut.cpu1.reg1.r2.value == 16
+    assert dut.cpu1.reg1.r3.value == 16
+
+@cocotb.test()
+async def test_load(dut):
+    # lw x1, 16(x0)
+    # lw x2, 20(x0)
+    # lb x3, 17(x0)
+    # lb x4, 16(x0)
+        
+    await run_program(dut, '''
+        01002083
+        01402103
+        01100183
+        01000203 
+        55997788
+        11223344
+        0
+        ''', max_reads=8)
+
+    assert dut.cpu1.reg1.r1.value == 0x55997788
+    assert dut.cpu1.reg1.r2.value == 0x11223344
+    assert dut.cpu1.reg1.r3.value == 0xffffff99
+    assert dut.cpu1.reg1.r4.value == 0x55
+
+
+@cocotb.test()
+async def test_load_lb_lbu(dut):
+    # lb x1, 33(x0)
+    # lbu x2, 33(x0)
+    await run_program(dut, '''
+        02100083
+        02104103
+        0
+        0
+        0
+        0
+        0
+        0
+        55997788
+        11223344
+    ''', max_reads=5)
+
+    assert dut.cpu1.reg1.r1.value == 0xffffff99
+    assert dut.cpu1.reg1.r2.value == 0x99
+
+@cocotb.test()
+async def test_load_lh_lhu(dut):
+    # lh x1, 33(x0)
+    # lhu x2, 33(x0)
+    await run_program(dut, '''
+        02101083
+        02105103
+        0
+        0
+        0
+        0
+        0
+        0
+        55997788
+        11223344
+    ''', max_reads=5)
+
+    assert dut.cpu1.reg1.r1.value == 0xffff9977
+    assert dut.cpu1.reg1.r2.value == 0x9977
+
+@cocotb.test()
+async def test_load_lw(dut):
+    # lw x1, 33(x0)
+    # lw x2, 32(x0)
+    # lw x3, 31(x0)
+    await run_program(dut, '''
+        02102083
+        02002103
+        01f02183 
+        0
+        0
+        0
+        0
+        0
+        55997788
+        11223344
+    ''', max_reads=7)
+
+    assert dut.cpu1.reg1.r1.value == 0x99778811
+    assert dut.cpu1.reg1.r2.value == 0x55997788
+    assert dut.cpu1.reg1.r3.value == 0x00559977
+
+# # TODO add more tests..
+    
 # @cocotb.test()
 # async def test_icache(dut):
 #     await run_program(dut, [
@@ -201,41 +324,3 @@ async def test_srai_sra(dut):
 #             0xf3800113 << 32 |      \
 #             0x4020d193 << 64 |      \
 #             0x40415213 << 96
-
-@cocotb.test()
-async def test_load(dut):
-    await run_program(dut, [
-        0x01002283,  # lw x5, 16(x0)
-        0x01402303,  # lw x6, 20(x0)
-        0x01100383,  # lb x7, 17(x0)
-        0x01000403,  # lb x8, 16(x0)
-        0x55997788,
-        0x11223344,
-        0,
-    ], max_reads=8)
-
-    assert dut.cpu1.r5.value == 0x55997788
-    assert dut.cpu1.r6.value == 0x11223344
-    assert dut.cpu1.r7.value == 0xffffff99
-    assert dut.cpu1.r8.value == 0x55
-
-
-@cocotb.test()
-async def test_load_lb_lbu(dut):
-    await run_program(dut, [
-        0x02100283,  # lb x5, 33(x0)
-        0x02104303,  # lbu x6, 33(x0)
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0x55997788,
-        0x11223344
-    ], max_reads=5)
-
-    assert dut.cpu1.r5.value == 0xffffff99
-    assert dut.cpu1.r6.value == 0x99
-
-# TODO add more tests..
