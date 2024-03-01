@@ -2,11 +2,16 @@ module mem_controller #(parameter size=32) (
     input  wire miso,  // Main spi signals
     output wire sclk,
     output wire mosi,
-    output wire cs,
 
-    input wire [2:0] read_bytes,
+    output wire cs1,     // SPI Flash
+    output wire cs2,     // SPI PSRAM
 
-    input  wire [23:0] target_address,
+    input wire is_write, // if 1 - write, 0 - write
+    input wire [2:0] num_bytes,
+
+    input wire [31:0] write_value,
+
+    input  wire [31:0] target_address,
     output wire [31:0] fetched_instruction,
     output wire [31:0] fetched_data,
 
@@ -23,19 +28,23 @@ module mem_controller #(parameter size=32) (
     reg prev_start_request;
     reg use_cached_data;
 
-    mem_read mem_read1 (
+    mem_external mem_external1 (
         .miso(miso),
         .sclk(sclk),
         .mosi(mosi),
-        .cs  (cs),
+        .cs1 (cs1),
+        .cs2 (cs2),
 
-        .read_bytes(read_bytes),
+        .num_bytes(num_bytes),
 
         .target_address(target_address),
         .target_data(mem_read_data),
 
-        .start_fetch(start_request),
-        .fetch_done (request_done),
+        .is_write(is_write),
+        .write_value(write_value),
+
+        .start_request(start_request),
+        .request_done (request_done),
 
         .clk  (clk),
         .rst_n(rst_n)

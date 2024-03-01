@@ -2,81 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import cocotb
-from cocotb.clock import Clock
-from cocotb.triggers import ClockCycles, RisingEdge, FallingEdge
-
-from cocotbext.spi import SpiBus
-from helpers import SimpleSpiSlave
-
-def prepare_bytes(memory_array):
-    # organize the memory array into bytes
-    bytes_array = []
-
-    for item in memory_array:
-        tmp = item
-        bits = [0] * 32
-        index = 0
-
-        while tmp > 0:
-            bits[index] = tmp % 2
-            tmp = tmp >> 1
-            index += 1
-
-        bits.reverse()
-        
-        for i in range(0, 4):
-            tmp_bits = bits[i*8:(i+1)*8]
-
-            value = 0
-            for index, val in enumerate(tmp_bits):
-                value = value | (val << (7-index))
-            # print(tmp_bits, value, hex(value))
-            bytes_array.append(value)
-
-    # for value in bytes_array:
-    #     print("%02x" % value)
-
-    return bytes_array
-
-async def run_program(dut, raw='', memory=None, max_reads=None, wait_cycles=100):
-    dut._log.info("Run program")
-
-    if raw != '':
-        memory = []
-        lines = raw.splitlines()
-        lines = [line.strip() for line in lines]
-        for line in lines:
-            if line != '':
-                memory.append(int(line, 16))
-
-    bytes_array = prepare_bytes(memory)
-
-    spi_peri = SimpleSpiSlave(SpiBus.from_entity(dut.cpu1.mem_controller1), bytes_array)  
-    clock = Clock(dut.clk, 10, units="us")
-    cocotb.start_soon(clock.start())
-
-    # Reset
-    dut._log.info("Reset")
-    dut.ena.value = 1
-    dut.rst_n.value = 0
-
-    if (max_reads == None):
-        max_reads = len(memory)
-
-    await ClockCycles(dut.clk, 20)
-    dut.rst_n.value = 1
-    counter = 0
-
-    while True:
-        await FallingEdge(dut.cpu1.mem_controller1.cs)
-        await RisingEdge(dut.cpu1.mem_controller1.cs)
-        counter += 1
-
-        # Use this as the stop signal for now
-        if (counter >= max_reads):
-            break
-
-    await ClockCycles(dut.clk, wait_cycles)
+from helpers import run_program
 
 @cocotb.test()
 async def test_addi_add(dut):
@@ -308,7 +234,104 @@ async def test_load_lw(dut):
     assert dut.cpu1.reg1.r2.value == 0x55997788
     assert dut.cpu1.reg1.r3.value == 0x00559977
 
-# # TODO add more tests..
+@cocotb.test()
+async def test_store_sw(dut):
+    # lw x1, 16(x0)
+    # addi x2, x2, 1234
+    # sw x2, 0(x1)
+    # sw x2, 8(x1)
+        
+    ram_chip, flash = await run_program(dut, '''
+        01002083
+        4d210113
+        0020a023
+        0020a423
+        01000000
+        0
+        0
+        ''', max_reads=6)
+
+    assert dut.cpu1.reg1.r1.value == 0x01000000
+    assert dut.cpu1.reg1.r2.value == 1234
+    assert ram_chip.get_value(0, 4) == 1234
+    assert ram_chip.get_value(8, 4) == 1234
+
+@cocotb.test()
+async def test_store_sb(dut):
+    # lw x1, 16(x0)
+    # addi x2, x2, 1234
+    # sb x2, 0(x1)
+    # sb x2, 8(x1)
+        
+    ram_chip, flash = await run_program(dut, '''
+        01002083
+        4d210113
+        00208023
+        00208423
+        01000000
+        0
+        0
+        ''', max_reads=6)
+
+    assert dut.cpu1.reg1.r1.value == 0x01000000
+    assert dut.cpu1.reg1.r2.value == 1234
+    assert ram_chip.get_value(0, 1) == 0xD2
+    assert ram_chip.get_value(8, 1) == 0xD2
+
+@cocotb.test()
+async def test_store_sh(dut):
+    # lw x1, 16(x0)
+    # addi x2, x2, 1234
+    # sh x2, 0(x1)
+    # sh x2, 8(x1)
+        
+    ram_chip, flash = await run_program(dut, '''
+        01002083
+        4d210113
+        00209023
+        00209423
+        01000000
+        0
+        0
+        ''', max_reads=6)
+
+    assert dut.cpu1.reg1.r1.value == 0x01000000
+    assert dut.cpu1.reg1.r2.value == 1234
+    assert ram_chip.get_value(0, 2) == 0x4D2
+    assert ram_chip.get_value(8, 2) == 0x4D2
+
+@cocotb.test()
+async def test_store_and_load(dut):
+    # lw x1, 28(x0)
+    # addi x2, x2, 1234
+    # sw x2, 0(x1)
+    # sw x2, 8(x1)
+    # lw x3, 0(x1)
+    # lb x4, 3(x1)
+        
+    ram_chip, flash = await run_program(dut, '''
+        01c02083
+        4d210113
+        0020a023
+        0020a423
+        0000a183
+        00308203
+        0
+        01000000
+        0
+        0
+        ''', max_reads=10)
+
+    assert dut.cpu1.reg1.r1.value == 0x01000000
+    assert dut.cpu1.reg1.r2.value == 1234
+    assert dut.cpu1.reg1.r3.value == 1234
+    assert (dut.cpu1.reg1.r4.value) & 0xff == 0xd2
+    assert dut.cpu1.reg1.r4.value.signed_integer == -46
+
+    assert ram_chip.get_value(0, 4) == 1234
+    assert ram_chip.get_value(8, 4) == 1234
+
+# TODO add more tests..
     
 # @cocotb.test()
 # async def test_icache(dut):

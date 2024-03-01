@@ -1,5 +1,5 @@
 src/project.v
 src/mem_controller.v
-src/mem_read.v
+src/mem_external.v
 src/registers.v
 src/alu.v

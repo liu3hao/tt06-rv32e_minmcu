@@ -5,9 +5,10 @@
 
 `define default_netname none
 
-localparam I_TYPE_INSTR = 7'h13;
-localparam R_TYPE_INSTR = 7'h33;
-localparam I_TYPE_LOAD_INSTR = 7'h03;
+localparam I_TYPE_INSTR =       7'h13;
+localparam R_TYPE_INSTR =       7'h33;
+localparam I_TYPE_LOAD_INSTR =  7'h03;
+localparam S_TYPE_INSTR =       7'h23;
 
 module tt_um_rv32e_cpu (
     input  wire [7:0] ui_in,    // Dedicated inputs
@@ -25,7 +26,7 @@ module tt_um_rv32e_cpu (
     // Not used yet.
     assign uio_oe = 0;
     assign uio_out = 0;
-    assign uo_out[7:3] = 0;
+    assign uo_out[7:4] = 0;
 
     localparam STATE_FETCH_INSTRUCTION = 2'b00;
     localparam STATE_PARSE_INSTRUCTION = 2'b01;
@@ -34,30 +35,43 @@ module tt_um_rv32e_cpu (
 
     reg [31:0] fetched_data;
     reg [31:0] fetched_instruction;
-    reg [23:0] fetch_address;
+    reg [31:0] mem_address;
 
     reg [1:0] state;
 
     wire mem_request_done;
     reg start_mem_request;
 
+    reg mem_write;
+
     reg [31:0] current_instruction;
 
     mem_controller mem_controller1 (
         .sclk(uo_out[0]),
         .mosi(uo_out[1]),
-        .cs(uo_out[2]),
+
+        .cs1(uo_out[2]),
+        .cs2(uo_out[3]),
+
         .miso(ui_in[0]),
 
         .is_data_fetch(
             opcode == I_TYPE_LOAD_INSTR && state == STATE_PARSE_INSTRUCTION
         ),
-        .read_bytes(
+
+        .num_bytes(
             state == STATE_FETCH_INSTRUCTION ? 3'd4
-            : load_num_bytes
+            : mem_num_bytes
         ),
 
-        .target_address(fetch_address),
+        .is_write(mem_write),
+        .write_value(
+            (instr_func3 == 3'd0) ? { rs2[7:0], 24'd0}
+            : (instr_func3 == 3'd1) ? { rs2[15:0], 16'd0}
+            : (instr_func3 == 3'd2) ? rs2
+            : 32'd0),
+
+        .target_address(mem_address),
 
         .fetched_instruction(fetched_instruction),
         .fetched_data(fetched_data),
@@ -103,6 +117,10 @@ module tt_um_rv32e_cpu (
     wire [11:0] i_type_imm;
     wire [31:0] i_type_imm_sign_extended;
 
+    wire [6:0] s_type_imm1;
+    wire [4:0] s_type_imm2;
+    wire [31:0] s_type_imm_sign_extended;
+
     assign opcode =        current_instruction[6:0];
     assign instr_rd =      current_instruction[11:7];
     assign instr_func3 =   current_instruction[14:12];
@@ -114,17 +132,24 @@ module tt_um_rv32e_cpu (
     assign i_type_imm_sign_extended =
         {i_type_imm[11] == 1'b1 ? 20'hfffff : 20'd0, i_type_imm};
 
+    assign s_type_imm1 = current_instruction[31:25];
+    assign s_type_imm2 = current_instruction[11:7];
+    assign s_type_imm_sign_extended =
+        {s_type_imm1[6] == 1'b1 ? 20'hfffff : 20'd0, s_type_imm1, s_type_imm2};
+
     wire [31:0] rs1;
     wire [31:0] rs2;
     wire [31:0] rd;
 
     wire [31:0] alu_result;
 
-    wire [31:0] load_address;
-    assign load_address = rs1 + i_type_imm_sign_extended;
+    wire [31:0] op_address; // Stores address of the load/store operation from the instruction
+    assign op_address = (opcode == I_TYPE_LOAD_INSTR) ? (rs1 + i_type_imm_sign_extended)
+                            : (opcode == S_TYPE_INSTR) ? (rs1 + s_type_imm_sign_extended)
+                            : 32'd0;
 
-    wire [2:0] load_num_bytes;
-    assign load_num_bytes = (instr_func3 == 3'd0 || instr_func3 == 3'd4) ? 3'd1
+    wire [2:0] mem_num_bytes;
+    assign mem_num_bytes = (instr_func3 == 3'd0 || instr_func3 == 3'd4) ? 3'd1
                             : (instr_func3 == 3'd1 || instr_func3 == 3'd5) ? 3'd2
                             : (instr_func3 == 3'd2) ? 3'd4
                             : 3'd0;
@@ -150,13 +175,15 @@ module tt_um_rv32e_cpu (
             state <= STATE_FETCH_INSTRUCTION;
             prog_counter <= 0;
             current_instruction <= 0;
-            fetch_address <= 0;
+            mem_address <= 0;
             start_mem_request <= 0;
+
+            mem_write <= 0;
 
         end else begin
             if (state == STATE_FETCH_INSTRUCTION) begin
                 if (mem_request_done == 0) begin
-                    fetch_address <= prog_counter[23:0];
+                    mem_address <= prog_counter[23:0];
                     start_mem_request <= 1;
                 end else begin
                     // Got something!
@@ -178,11 +205,26 @@ module tt_um_rv32e_cpu (
 
                     if (mem_request_done == 0) begin
                         start_mem_request <= 1;
-                        fetch_address <= load_address[23:0];
+                        mem_write <= 0;
+                        mem_address <= op_address;
+
                     end else begin
                         // Fetch is done
                         current_instruction <= 0;
                         start_mem_request <= 0;
+                    end
+
+                end else if (opcode == S_TYPE_INSTR) begin
+
+                    if (mem_request_done == 0) begin
+                        start_mem_request <= 1;
+                        mem_write <= 1;
+                        mem_address <= op_address;
+
+                    end else begin
+                        current_instruction <= 0;
+                        start_mem_request <= 0;
+                        mem_write <= 0;
                     end
 
                 end else begin
