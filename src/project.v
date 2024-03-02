@@ -9,6 +9,8 @@ localparam I_TYPE_INSTR =       7'h13;
 localparam R_TYPE_INSTR =       7'h33;
 localparam I_TYPE_LOAD_INSTR =  7'h03;
 localparam S_TYPE_INSTR =       7'h23;
+localparam J_TYPE_INSTR =       7'h6F;
+localparam I_TYPE_JUMP_INSTR =  7'h67;
 
 module tt_um_rv32e_cpu (
     input  wire [7:0] ui_in,    // Dedicated inputs
@@ -93,6 +95,7 @@ module tt_um_rv32e_cpu (
                 : (instr_func3 == 3'd4) ? {24'd0, fetched_data[7:0]}
                 : (instr_func3 == 3'd5) ? {16'd0, fetched_data[15:0]}
                 : 0)
+            : (opcode == J_TYPE_INSTR) ? (prog_counter + 4)
             : (instr_rd != 5'b0) ? alu_result
             : 0),
 
@@ -121,6 +124,8 @@ module tt_um_rv32e_cpu (
     wire [4:0] s_type_imm2;
     wire [31:0] s_type_imm_sign_extended;
 
+    wire [31:0] j_type_imm_sign_extended;
+
     assign opcode =        current_instruction[6:0];
     assign instr_rd =      current_instruction[11:7];
     assign instr_func3 =   current_instruction[14:12];
@@ -136,6 +141,9 @@ module tt_um_rv32e_cpu (
     assign s_type_imm2 = current_instruction[11:7];
     assign s_type_imm_sign_extended =
         {s_type_imm1[6] == 1'b1 ? 20'hfffff : 20'd0, s_type_imm1, s_type_imm2};
+
+    assign j_type_imm_sign_extended = {current_instruction[31] == 1'b1 ? 12'hfff : 12'h0,
+            current_instruction[19:12], current_instruction[20], current_instruction[30:21], 1'b0};
 
     wire [31:0] rs1;
     wire [31:0] rs2;
@@ -183,7 +191,7 @@ module tt_um_rv32e_cpu (
         end else begin
             if (state == STATE_FETCH_INSTRUCTION) begin
                 if (mem_request_done == 0) begin
-                    mem_address <= prog_counter[23:0];
+                    mem_address <= prog_counter;
                     start_mem_request <= 1;
                 end else begin
                     // Got something!
@@ -228,10 +236,12 @@ module tt_um_rv32e_cpu (
                     end
 
                 end else begin
-                     // For now, skip back to fetch more data
-                    start_mem_request <= 0;
-                    prog_counter <= prog_counter + 4;
+                    prog_counter <= prog_counter +
+                        ((opcode == J_TYPE_INSTR) ? j_type_imm_sign_extended
+                        : (opcode == I_TYPE_JUMP_INSTR) ? i_type_imm_sign_extended
+                        : 4);
                     state <= STATE_FETCH_INSTRUCTION;
+                    start_mem_request <= 0;
                 end
             end
         end

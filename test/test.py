@@ -331,6 +331,68 @@ async def test_store_and_load(dut):
     assert ram_chip.get_value(0, 4) == 1234
     assert ram_chip.get_value(8, 4) == 1234
 
+@cocotb.test()
+async def test_jal(dut):
+    # addi x1, x1, 10
+    # addi x2, x2, 20
+    # jal x8, 24
+    # addi x3, x3, 30
+    # addi x4, x4, 40
+    # addi x5, x5, 50
+    # addi x6, x6, 60
+    # addi x7, x7, 70
+        
+    await run_program(dut, '''
+        00a08093
+        01410113
+        0100046f
+        01e18193
+        02820213
+        03228293
+        03c30313
+        04638393
+        ''', max_reads=5)
+
+    assert dut.cpu1.reg1.r1.value == 10
+    assert dut.cpu1.reg1.r2.value == 20
+    assert dut.cpu1.reg1.r3.value == 0
+    assert dut.cpu1.reg1.r4.value == 0
+    assert dut.cpu1.reg1.r5.value == 0
+    assert dut.cpu1.reg1.r6.value == 60
+    assert dut.cpu1.reg1.r7.value == 70
+    assert dut.cpu1.reg1.r8.value == 12
+
+@cocotb.test()
+async def test_jalr(dut):
+    # addi x1, x1, 10
+    # addi x2, x2, 20
+    # jalr x8, 24(x1)
+    # addi x3, x3, 30
+    # addi x4, x4, 40
+    # addi x5, x5, 50
+    # addi x6, x6, 60
+    # addi x7, x7, 70
+        
+    await run_program(dut, '''
+        00a08093
+        01410113
+        0100046f
+        01e18193
+        02820213
+        03228293
+        03c30313
+        04638393
+        ''', max_reads=5)
+
+    assert dut.cpu1.reg1.r1.value == 10
+    assert dut.cpu1.reg1.r2.value == 20
+    assert dut.cpu1.reg1.r3.value == 0
+    assert dut.cpu1.reg1.r4.value == 0
+    assert dut.cpu1.reg1.r5.value == 0
+    assert dut.cpu1.reg1.r6.value == 60
+    assert dut.cpu1.reg1.r7.value == 70
+    assert dut.cpu1.reg1.r8.value == 12
+
 # TODO add more tests..
     
 # @cocotb.test()
