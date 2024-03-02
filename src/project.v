@@ -13,6 +13,7 @@ localparam J_TYPE_INSTR =       7'h6F;
 localparam I_TYPE_JUMP_INSTR =  7'h67;
 localparam U_TYPE_LUI_INSTR =   7'h37;
 localparam U_TYPE_AUIPC_INSTR = 7'h17;
+localparam B_TYPE_INSTR =       7'h63;
 
 module tt_um_rv32e_cpu (
     input  wire [7:0] ui_in,    // Dedicated inputs
@@ -131,6 +132,7 @@ module tt_um_rv32e_cpu (
     wire [31:0] j_type_imm_sign_extended;
 
     wire [31:0] u_type_imm;
+    wire [31:0] b_type_imm;
 
     assign opcode =        current_instruction[6:0];
     assign instr_rd =      current_instruction[11:7];
@@ -152,10 +154,18 @@ module tt_um_rv32e_cpu (
             current_instruction[19:12], current_instruction[20], current_instruction[30:21], 1'b0};
 
     assign u_type_imm = {current_instruction[31:12], 12'b0};
+    assign b_type_imm = {current_instruction[31] == 1 ? 20'hfffff: 20'h0, current_instruction[7],
+                        current_instruction[30:25], current_instruction[11:8], 1'b0};
 
     wire [31:0] rs1;
     wire [31:0] rs2;
     wire [31:0] rd;
+
+    // Can this be merged with rs1 and rs2?
+    wire signed [31:0] signed_rs1;
+    wire signed [31:0] signed_rs2;
+    assign signed_rs1 = rs1;
+    assign signed_rs2 = rs2;
 
     wire [31:0] alu_result;
 
@@ -247,6 +257,14 @@ module tt_um_rv32e_cpu (
                     prog_counter <= prog_counter +
                         ((opcode == J_TYPE_INSTR) ? j_type_imm_sign_extended
                         : (opcode == I_TYPE_JUMP_INSTR) ? i_type_imm_sign_extended
+                        : (opcode == B_TYPE_INSTR && (
+                                (instr_func3 == 3'd0 && rs1 == rs2)
+                                || (instr_func3 == 3'd1 && rs1 != rs2)
+                                || (instr_func3 == 3'd4 && signed_rs1 < signed_rs2)
+                                || (instr_func3 == 3'd5 && signed_rs1 >= signed_rs2)
+                                || (instr_func3 == 3'd6 && rs1 < rs2)
+                                || (instr_func3 == 3'd7 && rs1 >= rs2)
+                            )) ? b_type_imm
                         : 4);
                     state <= STATE_FETCH_INSTRUCTION;
                     start_mem_request <= 0;
