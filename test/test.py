@@ -393,6 +393,29 @@ async def test_jalr(dut):
     assert dut.cpu1.reg1.r7.value == 70
     assert dut.cpu1.reg1.r8.value == 12
 
+@cocotb.test()
+async def test_lui_auipc(dut):
+    # addi x1, x1, 10
+    # lui x2, 0x12345
+    # lui x3, 0x123
+    # auipc x4, 8
+    # auipc x5, 12
+        
+    await run_program(dut, '''
+        00a08093
+        12345137
+        001231b7
+        00008217
+        0000c297
+        ''')
+
+    assert dut.cpu1.reg1.r1.value == 10
+    assert dut.cpu1.reg1.r2.value == 0x12345000
+    assert dut.cpu1.reg1.r3.value == 0x123000
+    assert dut.cpu1.reg1.r4.value == 0x8000 + 12
+    assert dut.cpu1.reg1.r5.value == 0xc000 + 16
+
+
 # TODO add more tests..
     
 # @cocotb.test()

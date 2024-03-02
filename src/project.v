@@ -11,6 +11,8 @@ localparam I_TYPE_LOAD_INSTR =  7'h03;
 localparam S_TYPE_INSTR =       7'h23;
 localparam J_TYPE_INSTR =       7'h6F;
 localparam I_TYPE_JUMP_INSTR =  7'h67;
+localparam U_TYPE_LUI_INSTR =   7'h37;
+localparam U_TYPE_AUIPC_INSTR = 7'h17;
 
 module tt_um_rv32e_cpu (
     input  wire [7:0] ui_in,    // Dedicated inputs
@@ -96,6 +98,8 @@ module tt_um_rv32e_cpu (
                 : (instr_func3 == 3'd5) ? {16'd0, fetched_data[15:0]}
                 : 0)
             : (opcode == J_TYPE_INSTR) ? (prog_counter + 4)
+            : (opcode == U_TYPE_LUI_INSTR) ? u_type_imm
+            : (opcode == U_TYPE_AUIPC_INSTR) ? (prog_counter + u_type_imm)
             : (instr_rd != 5'b0) ? alu_result
             : 0),
 
@@ -126,6 +130,8 @@ module tt_um_rv32e_cpu (
 
     wire [31:0] j_type_imm_sign_extended;
 
+    wire [31:0] u_type_imm;
+
     assign opcode =        current_instruction[6:0];
     assign instr_rd =      current_instruction[11:7];
     assign instr_func3 =   current_instruction[14:12];
@@ -144,6 +150,8 @@ module tt_um_rv32e_cpu (
 
     assign j_type_imm_sign_extended = {current_instruction[31] == 1'b1 ? 12'hfff : 12'h0,
             current_instruction[19:12], current_instruction[20], current_instruction[30:21], 1'b0};
+
+    assign u_type_imm = {current_instruction[31:12], 12'b0};
 
     wire [31:0] rs1;
     wire [31:0] rs2;
