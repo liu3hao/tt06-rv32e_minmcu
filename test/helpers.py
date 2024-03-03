@@ -22,11 +22,11 @@ class SpiFlashPeripheral(SpiSlaveBase):
 
         super().__init__(bus)
 
-    
     def get_value(self, address, num_bytes):
+        # return in little-endian, so earlier mem addresses are the lsb
         value = 0
         for i in range(0, num_bytes):
-            value = (value << 8) | self.contents[address + i]
+            value = (self.contents[address + i] << (i*8)) | value
         return value
     
     def dump_memory(self):
@@ -99,7 +99,6 @@ class SpiFlashPeripheral(SpiSlaveBase):
         return await self._shift(num_bits-1, value)
 
 
-
 def prepare_bytes(memory_array):
     # organize the memory array into bytes
     bytes_array = []
@@ -116,6 +115,7 @@ def prepare_bytes(memory_array):
 
         bits.reverse()
         
+        tmp_bytes = []
         for i in range(0, 4):
             tmp_bits = bits[i*8:(i+1)*8]
 
@@ -123,12 +123,25 @@ def prepare_bytes(memory_array):
             for index, val in enumerate(tmp_bits):
                 value = value | (val << (7-index))
             # print(tmp_bits, value, hex(value))
-            bytes_array.append(value)
+            tmp_bytes.append(value)
+        
+        # Convert to little endian
+        tmp_bytes.reverse()
+        bytes_array += tmp_bytes
 
     # for value in bytes_array:
     #     print("%02x" % value)
 
     return bytes_array
+
+def load_binary(path):
+    tmp_bytes = []
+    output = []
+    with open(path, 'rb') as input_file:
+        tmp_bytes = input_file.read()
+    for b in tmp_bytes:
+        output.append(b)
+    return output
 
 async def run_program(dut, raw='', memory=None, wait_cycles=100):
     dut._log.info("Run program")
@@ -141,7 +154,10 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100):
             if line != '':
                 memory.append(int(line, 16))
 
-    bytes_array = prepare_bytes(memory)
+        bytes_array = prepare_bytes(memory)
+    elif memory is not None:
+        bytes_array = memory
+
     ram_bytes = {}
 
     # Flash memory

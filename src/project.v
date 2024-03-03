@@ -9,8 +9,8 @@ localparam I_TYPE_INSTR =       7'h13;
 localparam R_TYPE_INSTR =       7'h33;
 localparam I_TYPE_LOAD_INSTR =  7'h03;
 localparam S_TYPE_INSTR =       7'h23;
-localparam J_TYPE_INSTR =       7'h6F;
-localparam I_TYPE_JUMP_INSTR =  7'h67;
+localparam J_TYPE_INSTR =       7'h6F;  // JAL
+localparam I_TYPE_JUMP_INSTR =  7'h67;  // JALR
 localparam U_TYPE_LUI_INSTR =   7'h37;
 localparam U_TYPE_AUIPC_INSTR = 7'h17;
 localparam B_TYPE_INSTR =       7'h63;
@@ -74,8 +74,8 @@ module tt_um_rv32e_cpu (
 
         .is_write(mem_write),
         .write_value(
-            (instr_func3 == 3'd0) ? { rs2[7:0], 24'd0}
-            : (instr_func3 == 3'd1) ? { rs2[15:0], 16'd0}
+            (instr_func3 == 3'd0) ? { 24'd0, rs2[7:0]}
+            : (instr_func3 == 3'd1) ? { 16'd0, rs2[15:0]}
             : (instr_func3 == 3'd2) ? rs2
             : 32'd0),
 
@@ -95,13 +95,13 @@ module tt_um_rv32e_cpu (
         .write_register(state == STATE_PARSE_INSTRUCTION ? instr_rd: 5'd0),
         .write_value(
             (opcode == I_TYPE_LOAD_INSTR) ? (
-                (instr_func3 == 0) ? {fetched_data[7] == 1 ? 24'hffffff : 24'd0, fetched_data[7:0] }
-                : (instr_func3 == 3'd1) ? {fetched_data[15] == 1 ? 16'hffff : 16'd0, fetched_data[15:0]}
+                (instr_func3 == 0) ? {fetched_data[31] == 1 ? 24'hffffff : 24'd0, fetched_data[31:24] }
+                : (instr_func3 == 3'd1) ? {fetched_data[31] == 1 ? 16'hffff : 16'd0, fetched_data[31:16]}
                 : (instr_func3 == 3'd2) ? fetched_data
-                : (instr_func3 == 3'd4) ? {24'd0, fetched_data[7:0]}
-                : (instr_func3 == 3'd5) ? {16'd0, fetched_data[15:0]}
+                : (instr_func3 == 3'd4) ? {24'd0, fetched_data[31:24]}
+                : (instr_func3 == 3'd5) ? {16'd0, fetched_data[31:16]}
                 : 0)
-            : (opcode == J_TYPE_INSTR) ? (prog_counter + 4)
+            : (opcode == J_TYPE_INSTR || opcode == I_TYPE_JUMP_INSTR) ? (prog_counter + 4)
             : (opcode == U_TYPE_LUI_INSTR) ? u_type_imm
             : (opcode == U_TYPE_AUIPC_INSTR) ? (prog_counter + u_type_imm)
             : (instr_rd != 5'b0) ? alu_result
@@ -173,7 +173,7 @@ module tt_um_rv32e_cpu (
     wire [31:0] alu_result;
 
     wire [31:0] op_address; // Stores address of the load/store operation from the instruction
-    assign op_address = (opcode == I_TYPE_LOAD_INSTR) ? (rs1 + i_type_imm_sign_extended)
+    assign op_address = (opcode == I_TYPE_LOAD_INSTR || opcode == I_TYPE_JUMP_INSTR) ? (rs1 + i_type_imm_sign_extended)
                             : (opcode == S_TYPE_INSTR) ? (rs1 + s_type_imm_sign_extended)
                             : 32'd0;
 
@@ -258,27 +258,26 @@ module tt_um_rv32e_cpu (
                     end
 
                 end else begin
-                    prog_counter <= prog_counter +
-                        ((opcode == J_TYPE_INSTR) ? j_type_imm_sign_extended
-                        : (opcode == I_TYPE_JUMP_INSTR) ? i_type_imm_sign_extended
-                        : (opcode == B_TYPE_INSTR && (
-                                (instr_func3 == 3'd0 && rs1 == rs2)
-                                || (instr_func3 == 3'd1 && rs1 != rs2)
-                                || (instr_func3 == 3'd4 && signed_rs1 < signed_rs2)
-                                || (instr_func3 == 3'd5 && signed_rs1 >= signed_rs2)
-                                || (instr_func3 == 3'd6 && rs1 < rs2)
-                                || (instr_func3 == 3'd7 && rs1 >= rs2)
-                            )) ? b_type_imm
-                        : 4);
+                    prog_counter <= (opcode == I_TYPE_JUMP_INSTR) ? op_address
+                                    : prog_counter +
+                                        (
+                                            (opcode == J_TYPE_INSTR) ? j_type_imm_sign_extended
+                                            : (opcode == B_TYPE_INSTR && (
+                                                (instr_func3 == 3'd0 && rs1 == rs2)
+                                                || (instr_func3 == 3'd1 && rs1 != rs2)
+                                                || (instr_func3 == 3'd4 && signed_rs1 < signed_rs2)
+                                                || (instr_func3 == 3'd5 && signed_rs1 >= signed_rs2)
+                                                || (instr_func3 == 3'd6 && rs1 < rs2)
+                                                || (instr_func3 == 3'd7 && rs1 >= rs2)
+                                            )) ? b_type_imm
+                                            : 4);
 
                     state <= STATE_FETCH_INSTRUCTION;
                     start_mem_request <= 0;
 
                     // In this situation, the PC will not change anymore, so
                     // the program is halted.
-                    // This condition might not always halt the PC, need to
-                    // figure out the other conditions.
-                    if (opcode == I_TYPE_JUMP_INSTR && i_type_imm_sign_extended == 0) begin
+                    if (opcode == J_TYPE_INSTR && i_type_imm_sign_extended == 0) begin
                         halted <= 1;
                     end
                 end

@@ -86,10 +86,12 @@ module mem_external (
                     // Use 3 byte address mode for now
 
                     // Prepare the tx buffer, the MSB is transmitted first
+                    // If write_value is specified, then it needs to be transformed
+                    // for little-endian
                     spi_tx_buffer <= {
                         is_write ? 8'h02: 8'h03,
                         target_address[23:0],
-                        is_write ? write_value : 32'd0
+                        is_write ? {write_value[7:0], write_value[15:8], write_value[23:16], write_value[31:24]} : 32'd0
                     };
 
                 end else if (state == STATE_READ_ADDR) begin
@@ -131,8 +133,13 @@ module mem_external (
                     spi_tx_buffer[SPI_TX_BUFFER_SIZE-1] : 0;
 
     assign request_done = start_request && state == STATE_READ_ADDR_DONE;
+
+    // SPI data is lowest byte address first (little-endian), so need to
+    // transform the bytes
     assign target_data = (state == STATE_READ_ADDR_DONE && start_request == 1)
-                            ? spi_rx_buffer : 0;
+                            ?
+                            {spi_rx_buffer[7:0], spi_rx_buffer[15:8], spi_rx_buffer[23:16], spi_rx_buffer[31:24]}
+                            : 0;
 
 endmodule
 

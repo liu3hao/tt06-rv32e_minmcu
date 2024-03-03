@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import cocotb
-from helpers import run_program
+from helpers import load_binary, run_program
 
 @cocotb.test()
 async def test_addi_add(dut):
@@ -16,7 +16,7 @@ async def test_addi_add(dut):
         7d008113
         c1818193
         00310233
-        00000067
+        0000006f
         ''')
 
     assert dut.cpu1.reg1.r1.value == 1000
@@ -36,7 +36,7 @@ async def test_slt(dut):
         e0c10113
         0020a1b3
         00112233
-        00000067
+        0000006f
     ''')
 
     assert dut.cpu1.reg1.r1.value.signed_integer == -1000
@@ -55,7 +55,7 @@ async def test_sltu(dut):
         0c810113
         0020b1b3
         00113233
-        00000067
+        0000006f
     ''')
 
     assert dut.cpu1.reg1.r1.value == 100
@@ -74,7 +74,7 @@ async def test_xor(dut):
         0c810113
         0020c1b3
         00114233
-        00000067
+        0000006f
     ''')
 
     assert dut.cpu1.reg1.r1.value == 100
@@ -93,7 +93,7 @@ async def test_srli_srl(dut):
         0c810113
         0020d193
         00415213
-        00000067
+        0000006f
         ''')
 
     assert dut.cpu1.reg1.r1.value == 100
@@ -112,7 +112,7 @@ async def test_srai_sra(dut):
         f3810113
         4020d193
         40415213
-        00000067
+        0000006f
         ''')
 
     assert dut.cpu1.reg1.r1.value == 100
@@ -132,7 +132,7 @@ async def test_ori(dut):
         00710113
         0140e193
         00116213
-        00000067
+        0000006f
                       ''')
 
     assert dut.cpu1.reg1.r1.value == 100
@@ -150,7 +150,7 @@ async def test_andi(dut):
         01408093
         0f00f113
         0020f1b3
-        00000067
+        0000006f
         ''')
 
     assert dut.cpu1.reg1.r1.value == 20
@@ -170,19 +170,19 @@ async def test_load(dut):
         02402103
         02100183
         02000203
-        00008067
+        0000006f
         0
         0
         0
-        55997788
+        55779922
         11223344
         0
         ''')
 
-    assert dut.cpu1.reg1.r1.value == 0x55997788
+    assert dut.cpu1.reg1.r1.value == 0x55779922
     assert dut.cpu1.reg1.r2.value == 0x11223344
     assert dut.cpu1.reg1.r3.value == 0xffffff99
-    assert dut.cpu1.reg1.r4.value == 0x55
+    assert dut.cpu1.reg1.r4.value == 0x22
 
 
 @cocotb.test()
@@ -192,13 +192,13 @@ async def test_load_lb_lbu(dut):
     await run_program(dut, '''
         02100083
         02104103
-        00000067
+        0000006f
         0
         0
         0
         0
         0
-        55997788
+        55779988
         11223344
     ''')
 
@@ -212,7 +212,7 @@ async def test_load_lh_lhu(dut):
     await run_program(dut, '''
         02101083
         02105103
-        00000067
+        0000006f
         0
         0
         0
@@ -234,7 +234,7 @@ async def test_load_lw(dut):
         02102083
         02002103
         01f02183 
-        00000067
+        0000006f
         0
         0
         0
@@ -243,9 +243,9 @@ async def test_load_lw(dut):
         11223344
     ''')
 
-    assert dut.cpu1.reg1.r1.value == 0x99778811
+    assert dut.cpu1.reg1.r1.value == 0x44559977
     assert dut.cpu1.reg1.r2.value == 0x55997788
-    assert dut.cpu1.reg1.r3.value == 0x00559977
+    assert dut.cpu1.reg1.r3.value == 0x99778800
 
 @cocotb.test()
 async def test_store_sw(dut):
@@ -260,7 +260,7 @@ async def test_store_sw(dut):
         4d210113
         0020a023
         0020a423
-        00008067
+        0000006f
         0
         0
         0
@@ -276,15 +276,15 @@ async def test_store_sw(dut):
 async def test_store_sb(dut):
     # lw x1, 32(x0)
     # addi x2, x2, 1234
-    # sw x2, 0(x1)
-    # sw x2, 8(x1)
+    # sb x2, 0(x1)
+    # sb x2, 8(x1)
         
     ram_chip, flash = await run_program(dut, '''
         02002083
         4d210113
         00208023
         00208423
-        00008067
+        0000006f
         0
         0
         0
@@ -308,7 +308,7 @@ async def test_store_sh(dut):
         4d210113
         00209023
         00209423
-        00008067
+        0000006f
         0
         0
         0
@@ -327,7 +327,7 @@ async def test_store_and_load(dut):
     # sw x2, 0(x1)
     # sw x2, 8(x1)
     # lw x3, 0(x1)
-    # lb x4, 3(x1)
+    # lb x4, 0(x1)
         
     ram_chip, flash = await run_program(dut, '''
         01c02083
@@ -335,8 +335,8 @@ async def test_store_and_load(dut):
         0020a023
         0020a423
         0000a183
-        00308203
-        00008067
+        00008203
+        0000006f
         01000000
         0
         0
@@ -371,7 +371,7 @@ async def test_jal(dut):
         03228293
         03c30313
         04638393
-        00000067
+        0000006f
         ''')
 
     assert dut.cpu1.reg1.r1.value == 10
@@ -387,7 +387,7 @@ async def test_jal(dut):
 async def test_jalr(dut):
     # addi x1, x1, 10
     # addi x2, x2, 20
-    # jalr x8, 24(x1)
+    # jalr x8, 24(x0)
     # addi x3, x3, 30
     # addi x4, x4, 40
     # addi x5, x5, 50
@@ -397,13 +397,13 @@ async def test_jalr(dut):
     await run_program(dut, '''
         00a08093
         01410113
-        0100046f
+        01800467
         01e18193
         02820213
         03228293
         03c30313
         04638393
-        00000067
+        0000006f
         ''')
 
     assert dut.cpu1.reg1.r1.value == 10
@@ -429,7 +429,7 @@ async def test_lui_auipc(dut):
         001231b7
         00008217
         0000c297
-        00000067
+        0000006f
         ''')
 
     assert dut.cpu1.reg1.r1.value == 10
@@ -437,41 +437,17 @@ async def test_lui_auipc(dut):
     assert dut.cpu1.reg1.r3.value == 0x123000
     assert dut.cpu1.reg1.r4.value == 0x8000 + 12
     assert dut.cpu1.reg1.r5.value == 0xc000 + 16
-
+    
 @cocotb.test()
 async def test_script1(dut):
 
-    ram_chip, flash_chip = await run_program(dut, '''
-        00018193
-        02000117
-        ff710113
-        00010433
-        0040006f
-        ff410113
-        00812423
-        00c10413
-        00100793
-        fef42c23
-        fe042a23
-        01c0006f
-        ff842783
-        00179793
-        fef42c23
-        ff442783
-        00178793
-        fef42a23
-        ff442703
-        00900793
-        fee7d0e3
-        ff842783
-        00078513
-        00812403
-        00c10113
-        00008067    
-        ''')
+    bytes = load_binary('binaries/hello2.bin')
+    ram_chip, flash_chip = await run_program(dut, memory=bytes)
+
+    # return value of the function
+    assert dut.cpu1.reg1.r10.value == 1024
 
     ram_chip.dump_memory2()
-
 
 
 # TODO add more tests..
