@@ -1,3 +1,4 @@
 -explicit-parameter-storage-type
 -parameter-name-style
+-line-length
 +posix-eof

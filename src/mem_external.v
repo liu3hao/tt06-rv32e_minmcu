@@ -14,7 +14,7 @@ localparam SPI_STATE_CLK_DELAY_DISABLE_CS = 2;
 localparam SPI_TX_BUFFER_SIZE = 64;
 localparam SPI_RX_BUFFER_SIZE = 32;
 
-localparam SPI_CMD_BYTES = 4; //1 byte for code, 3 for address bytes
+localparam SPI_CMD_BYTES = 3'd4; //1 byte for code, 3 for address bytes
 
 module mem_external (
     input  wire miso,  // Main spi signals
@@ -104,8 +104,8 @@ module mem_external (
                         // Shift out the bits on the falling edge of the clock.
                         spi_tx_buffer   <= (spi_tx_buffer << 1);
                         spi_clk_counter <= spi_clk_counter + 1;
-                        
-                        if (spi_clk_counter + 1 >= (SPI_CMD_BYTES + num_bytes) * 8) begin
+
+                        if (spi_clk_counter + 1 >= ({5'd0, SPI_CMD_BYTES} + {5'd0, num_bytes}) * 8) begin
                             spi_state <= SPI_STATE_CLK_DELAY_DISABLE_CS;
                         end
                     end

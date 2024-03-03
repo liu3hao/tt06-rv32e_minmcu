@@ -31,10 +31,15 @@ class SpiFlashPeripheral(SpiSlaveBase):
     
     def dump_memory(self):
         print(self.contents)
+    
+    def dump_memory2(self):
+        keys = sorted(list(self.contents.keys()))
+
+        for addr in keys:
+            print(hex(addr), self.contents[addr])
 
     async def _transaction(self, frame_start, frame_end):
         await frame_start
-
         self.idle.clear()
 
         # wait for first byte
@@ -125,7 +130,7 @@ def prepare_bytes(memory_array):
 
     return bytes_array
 
-async def run_program(dut, raw='', memory=None, max_reads=None, wait_cycles=100):
+async def run_program(dut, raw='', memory=None, wait_cycles=100):
     dut._log.info("Run program")
 
     if raw != '':
@@ -137,7 +142,7 @@ async def run_program(dut, raw='', memory=None, max_reads=None, wait_cycles=100)
                 memory.append(int(line, 16))
 
     bytes_array = prepare_bytes(memory)
-    ram_bytes = [0] * 128
+    ram_bytes = {}
 
     # Flash memory
     flash_chip = SpiFlashPeripheral(SpiBus.from_entity(dut.cpu1.mem_controller1, 
@@ -149,7 +154,7 @@ async def run_program(dut, raw='', memory=None, max_reads=None, wait_cycles=100)
                                                  cs_name='cs2'), ram_bytes, 
                                                  name='ram')
     
-    clock = Clock(dut.clk, 10, units="us")
+    clock = Clock(dut.clk, 20, units="ns")
     cocotb.start_soon(clock.start())
 
     # Reset
@@ -157,22 +162,11 @@ async def run_program(dut, raw='', memory=None, max_reads=None, wait_cycles=100)
     dut.ena.value = 1
     dut.rst_n.value = 0
 
-    if (max_reads == None):
-        max_reads = len(memory)
-
     await ClockCycles(dut.clk, 20)
     dut.rst_n.value = 1
-    counter = 0
 
-    while True:
-        await FallingEdge(dut.cpu1.mem_controller1.cs1)
-        await RisingEdge(dut.cpu1.mem_controller1.cs1)
-        
-        counter += 1
-
-        # Use this as the stop signal for now
-        if (counter >= max_reads):
-            break
+    await RisingEdge(dut.cpu1.halted)
+    dut._log.info('CPU halted')
 
     await ClockCycles(dut.clk, wait_cycles)
 

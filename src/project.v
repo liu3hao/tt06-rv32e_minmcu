@@ -51,6 +51,9 @@ module tt_um_rv32e_cpu (
 
     reg [31:0] current_instruction;
 
+    // If high, then the CPU has stopped parsing further instructions
+    reg halted;
+
     mem_controller mem_controller1 (
         .sclk(uo_out[0]),
         .mosi(uo_out[1]),
@@ -115,8 +118,8 @@ module tt_um_rv32e_cpu (
     );
 
     wire [6:0] opcode;
-    wire [4:0] instr_rs1;
-    wire [4:0] instr_rs2;
+    wire [3:0] instr_rs1;
+    wire [3:0] instr_rs2;
     wire [4:0] instr_rd;
 
     wire [2:0] instr_func3;
@@ -137,8 +140,8 @@ module tt_um_rv32e_cpu (
     assign opcode =        current_instruction[6:0];
     assign instr_rd =      current_instruction[11:7];
     assign instr_func3 =   current_instruction[14:12];
-    assign instr_rs1 =     current_instruction[19:15];
-    assign instr_rs2 =     current_instruction[24:20];
+    assign instr_rs1 =     current_instruction[18:15]; // rv32e only has 16 regs
+    assign instr_rs2 =     current_instruction[23:20];
     assign instr_func7 =   current_instruction[31:25];
 
     assign i_type_imm =     current_instruction[31:20];
@@ -186,7 +189,7 @@ module tt_um_rv32e_cpu (
             (opcode == I_TYPE_INSTR && instr_func3 != 3'b001 && instr_func3 != 3'b101) ?
                 i_type_imm_sign_extended
                 : (opcode == I_TYPE_INSTR && (instr_func3 == 3'b001 || instr_func3 == 3'b101)) ? // Shift operations
-                    {27'b0, instr_rs2}
+                    {28'b0, instr_rs2}
                 : rs2),
 
         .func_type(instr_func3),
@@ -205,8 +208,9 @@ module tt_um_rv32e_cpu (
             start_mem_request <= 0;
 
             mem_write <= 0;
+            halted <= 0;
 
-        end else begin
+        end else if (halted == 0) begin
             if (state == STATE_FETCH_INSTRUCTION) begin
                 if (mem_request_done == 0) begin
                     mem_address <= prog_counter;
@@ -266,8 +270,17 @@ module tt_um_rv32e_cpu (
                                 || (instr_func3 == 3'd7 && rs1 >= rs2)
                             )) ? b_type_imm
                         : 4);
+
                     state <= STATE_FETCH_INSTRUCTION;
                     start_mem_request <= 0;
+
+                    // In this situation, the PC will not change anymore, so
+                    // the program is halted.
+                    // This condition might not always halt the PC, need to
+                    // figure out the other conditions.
+                    if (opcode == I_TYPE_JUMP_INSTR && i_type_imm_sign_extended == 0) begin
+                        halted <= 1;
+                    end
                 end
             end
         end

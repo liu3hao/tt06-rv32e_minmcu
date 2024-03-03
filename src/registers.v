@@ -3,10 +3,11 @@ module registers (
     input wire [4:0] write_register,
     input wire [31:0] write_value,
 
-    input wire [4:0] r_sel1,
+    // up to 16 registers
+    input wire [3:0] r_sel1,
     output wire [31:0] r_value1,
 
-    input wire [4:0] r_sel2,
+    input wire [3:0] r_sel2,
     output wire [31:0] r_value2,
 
     input wire clk,
@@ -59,40 +60,40 @@ module registers (
         end
     end
 
-    assign r_value1 = (r_sel1 == 5'd0) ?     r0
-                        : (r_sel1 == 5'd1) ? r1
-                        : (r_sel1 == 5'd2) ? r2
-                        : (r_sel1 == 5'd3) ? r3
-                        : (r_sel1 == 5'd4) ? r4
-                        : (r_sel1 == 5'd5) ? r5
-                        : (r_sel1 == 5'd6) ? r6
-                        : (r_sel1 == 5'd7) ? r7
-                        : (r_sel1 == 5'd8) ? r8
-                        : (r_sel1 == 5'd9) ? r9
-                        : (r_sel1 == 5'd10) ? r10
-                        : (r_sel1 == 5'd11) ? r11
-                        : (r_sel1 == 5'd12) ? r12
-                        : (r_sel1 == 5'd13) ? r13
-                        : (r_sel1 == 5'd14) ? r14
-                        : (r_sel1 == 5'd15) ? r15
+    assign r_value1 =     (r_sel1 == 4'd0) ? r0
+                        : (r_sel1 == 4'd1) ? r1
+                        : (r_sel1 == 4'd2) ? r2
+                        : (r_sel1 == 4'd3) ? r3
+                        : (r_sel1 == 4'd4) ? r4
+                        : (r_sel1 == 4'd5) ? r5
+                        : (r_sel1 == 4'd6) ? r6
+                        : (r_sel1 == 4'd7) ? r7
+                        : (r_sel1 == 4'd8) ? r8
+                        : (r_sel1 == 4'd9) ? r9
+                        : (r_sel1 == 4'd10) ? r10
+                        : (r_sel1 == 4'd11) ? r11
+                        : (r_sel1 == 4'd12) ? r12
+                        : (r_sel1 == 4'd13) ? r13
+                        : (r_sel1 == 4'd14) ? r14
+                        : (r_sel1 == 4'd15) ? r15
                         : 32'b0;
 
-    assign r_value2 = (r_sel2 == 5'd0) ?     r0
-                        : (r_sel2 == 5'd1) ? r1
-                        : (r_sel2 == 5'd2) ? r2
-                        : (r_sel2 == 5'd3) ? r3
-                        : (r_sel2 == 5'd4) ? r4
-                        : (r_sel2 == 5'd5) ? r5
-                        : (r_sel2 == 5'd6) ? r6
-                        : (r_sel2 == 5'd7) ? r7
-                        : (r_sel2 == 5'd8) ? r8
-                        : (r_sel2 == 5'd9) ? r9
-                        : (r_sel2 == 5'd10) ? r10
-                        : (r_sel2 == 5'd11) ? r11
-                        : (r_sel2 == 5'd12) ? r12
-                        : (r_sel2 == 5'd13) ? r13
-                        : (r_sel2 == 5'd14) ? r14
-                        : (r_sel2 == 5'd15) ? r15
+    assign r_value2 =     (r_sel2 == 4'd0) ? r0
+                        : (r_sel2 == 4'd1) ? r1
+                        : (r_sel2 == 4'd2) ? r2
+                        : (r_sel2 == 4'd3) ? r3
+                        : (r_sel2 == 4'd4) ? r4
+                        : (r_sel2 == 4'd5) ? r5
+                        : (r_sel2 == 4'd6) ? r6
+                        : (r_sel2 == 4'd7) ? r7
+                        : (r_sel2 == 4'd8) ? r8
+                        : (r_sel2 == 4'd9) ? r9
+                        : (r_sel2 == 4'd10) ? r10
+                        : (r_sel2 == 4'd11) ? r11
+                        : (r_sel2 == 4'd12) ? r12
+                        : (r_sel2 == 4'd13) ? r13
+                        : (r_sel2 == 4'd14) ? r14
+                        : (r_sel2 == 4'd15) ? r15
                         : 32'b0;
 
 endmodule
