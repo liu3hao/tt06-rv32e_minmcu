@@ -36,13 +36,14 @@ module tt_um_rv32e_cpu (
     localparam STATE_FETCH_INSTRUCTION = 2'b00;
     localparam STATE_PARSE_INSTRUCTION = 2'b01;
 
-    reg [31:0] prog_counter;
+    // 3 byte program counter, because the instruction address
+    // is only 3-bytes long.
+    reg [23:0] prog_counter;
 
     reg [31:0] fetched_data;
-    reg [31:0] fetched_instruction;
     reg [31:0] mem_address;
 
-    reg [1:0] state;
+    reg [1:0] state; // State of the CPU
 
     wire mem_request_done;
     reg start_mem_request;
@@ -81,7 +82,6 @@ module tt_um_rv32e_cpu (
 
         .target_address(mem_address),
 
-        .fetched_instruction(fetched_instruction),
         .fetched_data(fetched_data),
 
         .start_request(start_mem_request),
@@ -101,9 +101,9 @@ module tt_um_rv32e_cpu (
                 : (instr_func3 == 3'd4) ? {24'd0, fetched_data[31:24]}
                 : (instr_func3 == 3'd5) ? {16'd0, fetched_data[31:16]}
                 : 0)
-            : (opcode == J_TYPE_INSTR || opcode == I_TYPE_JUMP_INSTR) ? (prog_counter + 4)
+            : (opcode == J_TYPE_INSTR || opcode == I_TYPE_JUMP_INSTR) ? ({8'd0, prog_counter} + 4)
             : (opcode == U_TYPE_LUI_INSTR) ? u_type_imm
-            : (opcode == U_TYPE_AUIPC_INSTR) ? (prog_counter + u_type_imm)
+            : (opcode == U_TYPE_AUIPC_INSTR) ? ({8'd0, prog_counter} + u_type_imm)
             : (instr_rd != 5'b0) ? alu_result
             : 0),
 
@@ -213,12 +213,12 @@ module tt_um_rv32e_cpu (
         end else if (halted == 0) begin
             if (state == STATE_FETCH_INSTRUCTION) begin
                 if (mem_request_done == 0) begin
-                    mem_address <= prog_counter;
+                    mem_address <= {8'd0, prog_counter};
                     start_mem_request <= 1;
                 end else begin
                     // Got something!
                     state <= STATE_PARSE_INSTRUCTION;
-                    current_instruction <= fetched_instruction;
+                    current_instruction <= fetched_data;
                     start_mem_request <= 0; // Clear the fetch request
                 end
             end else if (state == STATE_PARSE_INSTRUCTION) begin
@@ -258,10 +258,12 @@ module tt_um_rv32e_cpu (
                     end
 
                 end else begin
-                    prog_counter <= (opcode == I_TYPE_JUMP_INSTR) ? op_address
+                    // If opcode is 0 (because current instruction set to 0),
+                    // or unrecognized, then fetch the next instruction.
+                    prog_counter <= (opcode == I_TYPE_JUMP_INSTR) ? op_address[23:0]
                                     : prog_counter +
                                         (
-                                            (opcode == J_TYPE_INSTR) ? j_type_imm_sign_extended
+                                            (opcode == J_TYPE_INSTR) ? j_type_imm_sign_extended[23:0]
                                             : (opcode == B_TYPE_INSTR && (
                                                 (instr_func3 == 3'd0 && rs1 == rs2)
                                                 || (instr_func3 == 3'd1 && rs1 != rs2)
@@ -269,7 +271,7 @@ module tt_um_rv32e_cpu (
                                                 || (instr_func3 == 3'd5 && signed_rs1 >= signed_rs2)
                                                 || (instr_func3 == 3'd6 && rs1 < rs2)
                                                 || (instr_func3 == 3'd7 && rs1 >= rs2)
-                                            )) ? b_type_imm
+                                            )) ? b_type_imm[23:0]
                                             : 4);
 
                     state <= STATE_FETCH_INSTRUCTION;

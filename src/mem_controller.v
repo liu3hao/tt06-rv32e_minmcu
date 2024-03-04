@@ -10,9 +10,8 @@ module mem_controller #(parameter size=32) (
     input wire [2:0] num_bytes,
 
     input wire [31:0] write_value,
-
     input  wire [31:0] target_address,
-    output wire [31:0] fetched_instruction,
+
     output wire [31:0] fetched_data,
 
     input wire is_data_fetch,
@@ -24,9 +23,6 @@ module mem_controller #(parameter size=32) (
     input wire rst_n  // global reset signal reset_n - low to reset
 );
     wire [31:0] mem_read_data;  // data fetched from memory
-
-    reg prev_start_request;
-    reg use_cached_data;
 
     mem_external mem_external1 (
         .miso(miso),
@@ -50,6 +46,13 @@ module mem_controller #(parameter size=32) (
         .rst_n(rst_n)
     );
 
+    assign fetched_data = (start_request == 1) ? mem_read_data: 32'd0;
+
+endmodule
+
+    // reg prev_start_request;
+    // reg use_cached_data;
+
     // always @ (posedge clk) begin
     //     if (rst_n == 0) begin
     //         prev_start_request <= 0;
@@ -72,10 +75,6 @@ module mem_controller #(parameter size=32) (
     //         end
     //     end
     // end
-
-    assign fetched_instruction = (start_request == 1 && is_data_fetch == 0) ? mem_read_data : 32'd0;
-    assign fetched_data = (start_request == 1 && is_data_fetch == 1) ? mem_read_data
-                            : 32'd0;
 
     // assign request_done = start_request == 1 && (
     //                         (is_data_fetch == 0 && request_done == 1) ||
@@ -125,7 +124,7 @@ module mem_controller #(parameter size=32) (
     //     .rst_n(rst_n)
     // );
 
-endmodule
+
 
 
 // module cache #(
