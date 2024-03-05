@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import cocotb
-from helpers import load_binary, run_program
+from helpers import get_register, load_binary, run_program
 
 @cocotb.test()
 async def test_addi_add(dut):
@@ -19,10 +19,10 @@ async def test_addi_add(dut):
         0000006f
         ''')
 
-    assert dut.cpu1.reg1.r1.value == 1000
-    assert dut.cpu1.reg1.r2.value == 3000
-    assert dut.cpu1.reg1.r3.value.signed_integer == -1000
-    assert dut.cpu1.reg1.r4.value == 2000
+    assert get_register(dut, 1).value == 1000
+    assert get_register(dut, 2).value == 3000
+    assert get_register(dut, 3).value.signed_integer == -1000
+    assert get_register(dut, 4).value == 2000
 
 @cocotb.test()
 async def test_slt(dut):
@@ -39,10 +39,10 @@ async def test_slt(dut):
         0000006f
     ''')
 
-    assert dut.cpu1.reg1.r1.value.signed_integer == -1000
-    assert dut.cpu1.reg1.r2.value.signed_integer == -500
-    assert dut.cpu1.reg1.r3.value == 1
-    assert dut.cpu1.reg1.r4.value == 0
+    assert get_register(dut, 1).value.signed_integer == -1000
+    assert get_register(dut, 2).value.signed_integer == -500
+    assert get_register(dut, 3).value == 1
+    assert get_register(dut, 4).value == 0
 
 @cocotb.test()
 async def test_sltu(dut):
@@ -58,10 +58,10 @@ async def test_sltu(dut):
         0000006f
     ''')
 
-    assert dut.cpu1.reg1.r1.value == 100
-    assert dut.cpu1.reg1.r2.value == 200
-    assert dut.cpu1.reg1.r3.value == 1
-    assert dut.cpu1.reg1.r4.value == 0
+    assert get_register(dut, 1).value == 100
+    assert get_register(dut, 2).value == 200
+    assert get_register(dut, 3).value == 1
+    assert get_register(dut, 4).value == 0
 
 @cocotb.test()
 async def test_xor(dut):
@@ -77,10 +77,10 @@ async def test_xor(dut):
         0000006f
     ''')
 
-    assert dut.cpu1.reg1.r1.value == 100
-    assert dut.cpu1.reg1.r2.value == 200
-    assert dut.cpu1.reg1.r3.value == 172
-    assert dut.cpu1.reg1.r4.value == 172
+    assert get_register(dut, 1).value == 100
+    assert get_register(dut, 2).value == 200
+    assert get_register(dut, 3).value == 172
+    assert get_register(dut, 4).value == 172
 
 @cocotb.test()
 async def test_srli_srl(dut):
@@ -96,10 +96,10 @@ async def test_srli_srl(dut):
         0000006f
         ''')
 
-    assert dut.cpu1.reg1.r1.value == 100
-    assert dut.cpu1.reg1.r2.value == 200
-    assert dut.cpu1.reg1.r3.value == 25
-    assert dut.cpu1.reg1.r4.value == 12
+    assert get_register(dut, 1).value == 100
+    assert get_register(dut, 2).value == 200
+    assert get_register(dut, 3).value == 25
+    assert get_register(dut, 4).value == 12
 
 @cocotb.test()
 async def test_srai_sra(dut):
@@ -115,10 +115,10 @@ async def test_srai_sra(dut):
         0000006f
         ''')
 
-    assert dut.cpu1.reg1.r1.value == 100
-    assert dut.cpu1.reg1.r2.value.signed_integer == -200
-    assert dut.cpu1.reg1.r3.value == 25
-    assert dut.cpu1.reg1.r4.value.signed_integer == -13
+    assert get_register(dut, 1).value == 100
+    assert get_register(dut, 2).value.signed_integer == -200
+    assert get_register(dut, 3).value == 25
+    assert get_register(dut, 4).value.signed_integer == -13
 
 @cocotb.test()
 async def test_ori(dut):
@@ -135,10 +135,10 @@ async def test_ori(dut):
         0000006f
                       ''')
 
-    assert dut.cpu1.reg1.r1.value == 100
-    assert dut.cpu1.reg1.r2.value == 7
-    assert dut.cpu1.reg1.r3.value == 116
-    assert dut.cpu1.reg1.r4.value == 7
+    assert get_register(dut, 1).value == 100
+    assert get_register(dut, 2).value == 7
+    assert get_register(dut, 3).value == 116
+    assert get_register(dut, 4).value == 7
 
 @cocotb.test()
 async def test_andi(dut):
@@ -153,9 +153,9 @@ async def test_andi(dut):
         0000006f
         ''')
 
-    assert dut.cpu1.reg1.r1.value == 20
-    assert dut.cpu1.reg1.r2.value == 16
-    assert dut.cpu1.reg1.r3.value == 16
+    assert get_register(dut, 1).value == 20
+    assert get_register(dut, 2).value == 16
+    assert get_register(dut, 3).value == 16
 
 @cocotb.test()
 async def test_load(dut):
@@ -179,10 +179,10 @@ async def test_load(dut):
         0
         ''')
 
-    assert dut.cpu1.reg1.r1.value == 0x55779922
-    assert dut.cpu1.reg1.r2.value == 0x11223344
-    assert dut.cpu1.reg1.r3.value == 0xffffff99
-    assert dut.cpu1.reg1.r4.value == 0x22
+    assert get_register(dut, 1).value == 0x55779922
+    assert get_register(dut, 2).value == 0x11223344
+    assert get_register(dut, 3).value == 0xffffff99
+    assert get_register(dut, 4).value == 0x22
 
 
 @cocotb.test()
@@ -202,8 +202,8 @@ async def test_load_lb_lbu(dut):
         11223344
     ''')
 
-    assert dut.cpu1.reg1.r1.value == 0xffffff99
-    assert dut.cpu1.reg1.r2.value == 0x99
+    assert get_register(dut, 1).value == 0xffffff99
+    assert get_register(dut, 2).value == 0x99
 
 @cocotb.test()
 async def test_load_lh_lhu(dut):
@@ -222,8 +222,8 @@ async def test_load_lh_lhu(dut):
         11223344
     ''')
 
-    assert dut.cpu1.reg1.r1.value == 0xffff9977
-    assert dut.cpu1.reg1.r2.value == 0x9977
+    assert get_register(dut, 1).value == 0xffff9977
+    assert get_register(dut, 2).value == 0x9977
 
 @cocotb.test()
 async def test_load_lw(dut):
@@ -243,9 +243,9 @@ async def test_load_lw(dut):
         11223344
     ''')
 
-    assert dut.cpu1.reg1.r1.value == 0x44559977
-    assert dut.cpu1.reg1.r2.value == 0x55997788
-    assert dut.cpu1.reg1.r3.value == 0x99778800
+    assert get_register(dut, 1).value == 0x44559977
+    assert get_register(dut, 2).value == 0x55997788
+    assert get_register(dut, 3).value == 0x99778800
 
 @cocotb.test()
 async def test_store_sw(dut):
@@ -267,8 +267,8 @@ async def test_store_sw(dut):
         01000000
         ''')
 
-    assert dut.cpu1.reg1.r1.value == 0x01000000
-    assert dut.cpu1.reg1.r2.value == 1234
+    assert get_register(dut, 1).value == 0x01000000
+    assert get_register(dut, 2).value == 1234
     assert ram_chip.get_value(0, 4) == 1234
     assert ram_chip.get_value(8, 4) == 1234
 
@@ -291,8 +291,8 @@ async def test_store_sb(dut):
         01000000
         ''')
 
-    assert dut.cpu1.reg1.r1.value == 0x01000000
-    assert dut.cpu1.reg1.r2.value == 1234
+    assert get_register(dut, 1).value == 0x01000000
+    assert get_register(dut, 2).value == 1234
     assert ram_chip.get_value(0, 1) == 0xD2
     assert ram_chip.get_value(8, 1) == 0xD2
 
@@ -315,8 +315,8 @@ async def test_store_sh(dut):
         01000000
         ''')
 
-    assert dut.cpu1.reg1.r1.value == 0x01000000
-    assert dut.cpu1.reg1.r2.value == 1234
+    assert get_register(dut, 1).value == 0x01000000
+    assert get_register(dut, 2).value == 1234
     assert ram_chip.get_value(0, 2) == 0x4D2
     assert ram_chip.get_value(8, 2) == 0x4D2
 
@@ -342,11 +342,11 @@ async def test_store_and_load(dut):
         0
         ''')
 
-    assert dut.cpu1.reg1.r1.value == 0x01000000
-    assert dut.cpu1.reg1.r2.value == 1234
-    assert dut.cpu1.reg1.r3.value == 1234
-    assert (dut.cpu1.reg1.r4.value) & 0xff == 0xd2
-    assert dut.cpu1.reg1.r4.value.signed_integer == -46
+    assert get_register(dut, 1).value == 0x01000000
+    assert get_register(dut, 2).value == 1234
+    assert get_register(dut, 3).value == 1234
+    assert (get_register(dut, 4).value) & 0xff == 0xd2
+    assert get_register(dut, 4).value.signed_integer == -46
 
     assert ram_chip.get_value(0, 4) == 1234
     assert ram_chip.get_value(8, 4) == 1234
@@ -374,14 +374,14 @@ async def test_jal(dut):
         0000006f
         ''')
 
-    assert dut.cpu1.reg1.r1.value == 10
-    assert dut.cpu1.reg1.r2.value == 20
-    assert dut.cpu1.reg1.r3.value == 0
-    assert dut.cpu1.reg1.r4.value == 0
-    assert dut.cpu1.reg1.r5.value == 0
-    assert dut.cpu1.reg1.r6.value == 60
-    assert dut.cpu1.reg1.r7.value == 70
-    assert dut.cpu1.reg1.r8.value == 12
+    assert get_register(dut, 1).value == 10
+    assert get_register(dut, 2).value == 20
+    assert get_register(dut, 3).value == 0
+    assert get_register(dut, 4).value == 0
+    assert get_register(dut, 5).value == 0
+    assert get_register(dut, 6).value == 60
+    assert get_register(dut, 7).value == 70
+    assert get_register(dut, 8).value == 12
 
 @cocotb.test()
 async def test_jalr(dut):
@@ -406,14 +406,14 @@ async def test_jalr(dut):
         0000006f
         ''')
 
-    assert dut.cpu1.reg1.r1.value == 10
-    assert dut.cpu1.reg1.r2.value == 20
-    assert dut.cpu1.reg1.r3.value == 0
-    assert dut.cpu1.reg1.r4.value == 0
-    assert dut.cpu1.reg1.r5.value == 0
-    assert dut.cpu1.reg1.r6.value == 60
-    assert dut.cpu1.reg1.r7.value == 70
-    assert dut.cpu1.reg1.r8.value == 12
+    assert get_register(dut, 1).value == 10
+    assert get_register(dut, 2).value == 20
+    assert get_register(dut, 3).value == 0
+    assert get_register(dut, 4).value == 0
+    assert get_register(dut, 5).value == 0
+    assert get_register(dut, 6).value == 60
+    assert get_register(dut, 7).value == 70
+    assert get_register(dut, 8).value == 12
 
 @cocotb.test()
 async def test_lui_auipc(dut):
@@ -432,11 +432,11 @@ async def test_lui_auipc(dut):
         0000006f
         ''')
 
-    assert dut.cpu1.reg1.r1.value == 10
-    assert dut.cpu1.reg1.r2.value == 0x12345000
-    assert dut.cpu1.reg1.r3.value == 0x123000
-    assert dut.cpu1.reg1.r4.value == 0x8000 + 12
-    assert dut.cpu1.reg1.r5.value == 0xc000 + 16
+    assert get_register(dut, 1).value == 10
+    assert get_register(dut, 2).value == 0x12345000
+    assert get_register(dut, 3).value == 0x123000
+    assert get_register(dut, 4).value == 0x8000 + 12
+    assert get_register(dut, 5).value == 0xc000 + 16
     
 @cocotb.test()
 async def test_script1(dut):
@@ -445,7 +445,7 @@ async def test_script1(dut):
     ram_chip, flash_chip = await run_program(dut, memory=bytes)
 
     # return value of the function
-    assert dut.cpu1.reg1.r10.value == 1024
+    assert get_register(dut, 10).value == 1024
 
     ram_chip.dump_memory2()
 

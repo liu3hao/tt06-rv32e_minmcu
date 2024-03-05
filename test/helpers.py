@@ -187,3 +187,6 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100):
     await ClockCycles(dut.clk, wait_cycles)
 
     return ram_chip, flash_chip
+
+def get_register(dut, index):
+    return dut.cpu1.reg1._id('registers[%d]' % index, extended=False)

@@ -92,7 +92,7 @@ module tt_um_rv32e_cpu (
     );
 
     registers reg1 (
-        .write_register(state == STATE_PARSE_INSTRUCTION ? instr_rd: 5'd0),
+        .write_register(state == STATE_PARSE_INSTRUCTION ? instr_rd: 4'd0),
         .write_value(
             (opcode == I_TYPE_LOAD_INSTR) ? (
                 (instr_func3 == 0) ? {fetched_data[31] == 1 ? 24'hffffff : 24'd0, fetched_data[31:24] }
@@ -120,7 +120,7 @@ module tt_um_rv32e_cpu (
     wire [6:0] opcode;
     wire [3:0] instr_rs1;
     wire [3:0] instr_rs2;
-    wire [4:0] instr_rd;
+    wire [3:0] instr_rd;
 
     wire [2:0] instr_func3;
     wire [6:0] instr_func7;
@@ -138,7 +138,7 @@ module tt_um_rv32e_cpu (
     wire [31:0] b_type_imm;
 
     assign opcode =        current_instruction[6:0];
-    assign instr_rd =      current_instruction[11:7];
+    assign instr_rd =      current_instruction[10:7];
     assign instr_func3 =   current_instruction[14:12];
     assign instr_rs1 =     current_instruction[18:15]; // rv32e only has 16 regs
     assign instr_rs2 =     current_instruction[23:20];

@@ -7,9 +7,9 @@ localparam STATE_START = 0;
 localparam STATE_READ_ADDR = 1;
 localparam STATE_READ_ADDR_DONE = 2;
 
-localparam SPI_STATE_CS_CLK_IDLE = 0;
-localparam SPI_STATE_ENABLE_CS_DELAY_CLK = 1;
-localparam SPI_STATE_CLK_DELAY_DISABLE_CS = 2;
+localparam SPI_STATE_CS_CLK_IDLE =          2'd0;
+localparam SPI_STATE_ENABLE_CS_DELAY_CLK =  2'd1;
+localparam SPI_STATE_CLK_DELAY_DISABLE_CS = 2'd2;
 
 localparam SPI_TX_BUFFER_SIZE = 64;
 localparam SPI_RX_BUFFER_SIZE = 32;
@@ -155,22 +155,25 @@ module spi_clk #(
     reg [3:0] cs_delay;
 
     always @(posedge refclk) begin
-
-        if (spi_clk_state == SPI_STATE_CS_CLK_IDLE) begin
-            counter  <= 0;
-            cs_delay <= 0;
-
-        end else if (spi_clk_state == SPI_STATE_ENABLE_CS_DELAY_CLK) begin
-            if (cs_delay > 4) begin
-                counter <= counter + 1;
-            end else begin
-                cs_delay <= cs_delay + 1;
+        case (spi_clk_state)
+            SPI_STATE_CS_CLK_IDLE: begin
+                counter <= 0;
+                cs_delay <= 0;
             end
-        end else if (spi_clk_state == SPI_STATE_CLK_DELAY_DISABLE_CS) begin
-            if (cs_delay < 8) begin
-                cs_delay <= cs_delay + 1;
+            SPI_STATE_ENABLE_CS_DELAY_CLK: begin
+                if (cs_delay > 4) begin
+                    counter <= counter + 1;
+                end else begin
+                    cs_delay <= cs_delay + 1;
+                end
             end
-        end
+            SPI_STATE_CLK_DELAY_DISABLE_CS: begin
+                if (cs_delay < 8) begin
+                    cs_delay <= cs_delay + 1;
+                end
+            end
+            default: ;
+        endcase
     end
 
     assign outclk = (spi_clk_state == SPI_STATE_ENABLE_CS_DELAY_CLK

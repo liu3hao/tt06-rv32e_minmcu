@@ -5,10 +5,16 @@
 */
 module tb ();
 
+    integer i;
+
     // Dump the signals to a VCD file. You can view it with gtkwave.
     initial begin
         $dumpfile("tb.vcd");
         $dumpvars(0, tb);
+
+        for (i = 0; i < 16; i = i + 1) begin
+            $dumpvars(0, cpu1.reg1.registers[i]);
+        end
         #1;
     end
 
