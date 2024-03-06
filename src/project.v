@@ -92,7 +92,7 @@ module tt_um_rv32e_cpu (
     );
 
     registers reg1 (
-        .write_register(state == STATE_PARSE_INSTRUCTION ? instr_rd: 4'd0),
+        .write_register((state == STATE_PARSE_INSTRUCTION && opcode != S_TYPE_INSTR) ? instr_rd: 4'd0),
         .write_value(
             (opcode == I_TYPE_LOAD_INSTR) ? (
                 (instr_func3 == 0) ? {fetched_data[31] == 1 ? 24'hffffff : 24'd0, fetched_data[31:24] }
@@ -104,7 +104,7 @@ module tt_um_rv32e_cpu (
             : (opcode == J_TYPE_INSTR || opcode == I_TYPE_JUMP_INSTR) ? ({8'd0, prog_counter} + 4)
             : (opcode == U_TYPE_LUI_INSTR) ? u_type_imm
             : (opcode == U_TYPE_AUIPC_INSTR) ? ({8'd0, prog_counter} + u_type_imm)
-            : (instr_rd != 5'b0) ? alu_result
+            : (instr_rd != 4'b0) ? alu_result
             : 0),
 
         .r_sel1(instr_rs1),

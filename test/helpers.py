@@ -189,4 +189,7 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100):
     return ram_chip, flash_chip
 
 def get_register(dut, index):
-    return dut.cpu1.reg1._id('registers[%d]' % index, extended=False)
+    if False:
+        return dut.cpu1.reg1._id('r%d' % index, extended=False)
+    else:
+        return dut.cpu1.reg1._id('registers[%d]' % index, extended=False)

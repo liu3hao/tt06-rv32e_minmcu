@@ -251,6 +251,7 @@ async def test_load_lw(dut):
 async def test_store_sw(dut):
     # lw x1, 32(x0)   
     # addi x2, x2, 1234
+    # addi x8, x8, 10
     # sw x2, 0(x1)
     # sw x2, 8(x1)
     # ret
@@ -258,10 +259,10 @@ async def test_store_sw(dut):
     ram_chip, flash = await run_program(dut, '''
         02002083
         4d210113
+        00a40413
         0020a023
         0020a423
         0000006f
-        0
         0
         0
         01000000
@@ -269,6 +270,7 @@ async def test_store_sw(dut):
 
     assert get_register(dut, 1).value == 0x01000000
     assert get_register(dut, 2).value == 1234
+    assert get_register(dut, 8).value == 10 # Make sure this is not changed
     assert ram_chip.get_value(0, 4) == 1234
     assert ram_chip.get_value(8, 4) == 1234
 
@@ -444,11 +446,10 @@ async def test_script1(dut):
     bytes = load_binary('binaries/hello2.bin')
     ram_chip, flash_chip = await run_program(dut, memory=bytes)
 
-    # return value of the function
-    assert get_register(dut, 10).value == 1024
-
     ram_chip.dump_memory2()
 
+    # return value of the function
+    assert get_register(dut, 10).value == 1024
 
 # TODO add more tests..
     
