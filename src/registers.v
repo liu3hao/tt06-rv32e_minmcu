@@ -20,19 +20,27 @@ module registers (
     assign r_value2 = registers[r_sel2];
 
     // Writing data into registers
-    generate
-        genvar i;
-        for (i = 0; i < 16; i = i + 1) begin: g_reset_regs
-            always @(posedge clk) begin
-                if (rst_n == 0) begin
-                    registers[i] <= 0;
-                end
-            end
-        end
-    endgenerate
-
     always @(posedge clk) begin
-        if (write_register != 0) begin
+        if (rst_n == 0) begin
+            registers[0]  <= 0;
+            registers[1]  <= 0;
+            registers[2]  <= 0;
+            registers[3]  <= 0;
+            registers[4]  <= 0;
+            registers[5]  <= 0;
+            registers[6]  <= 0;
+            registers[7]  <= 0;
+            registers[8]  <= 0;
+            registers[9]  <= 0;
+            registers[10] <= 0;
+            registers[11] <= 0;
+            registers[12] <= 0;
+            registers[13] <= 0;
+            registers[14] <= 0;
+            registers[15] <= 0;
+
+        end else if (write_register != 0) begin
+            // Do not allow reg 0 to be changed.
             registers[write_register] <= write_value;
         end
     end
