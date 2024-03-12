@@ -4,12 +4,13 @@
  */
 
 localparam STATE_START = 0;
-localparam STATE_READ_ADDR = 1;
-localparam STATE_READ_ADDR_DONE = 2;
+localparam STATE_COMMAND_RUN = 1;
+localparam STATE_COMMAND_DONE = 2;
 
 localparam SPI_STATE_CS_CLK_IDLE =          2'd0;
 localparam SPI_STATE_ENABLE_CS_DELAY_CLK =  2'd1;
-localparam SPI_STATE_CLK_DELAY_DISABLE_CS = 2'd2;
+localparam SPI_STATE_TRANSACTION =          2'd2;
+localparam SPI_STATE_CLK_DELAY_DISABLE_CS = 2'd3;
 
 localparam SPI_TX_BUFFER_SIZE = 64;
 localparam SPI_RX_BUFFER_SIZE = 32;
@@ -52,134 +53,118 @@ module mem_external (
     reg [1:0] spi_state;  // SPI CLK and CS state
 
     wire clk1_cs;
-    spi_clk clk1 (
-        .spi_clk_state(spi_state),
-        .refclk(clk),
-        .outclk(sclk),
-        .cs(clk1_cs)
-    );
+    wire [7:0] address_msb;
+    assign address_msb = target_address[31:24];
 
     // Depending on the target addres range, select the CS pin.
-    assign cs1 = (target_address[31:24] == 8'h00) ? clk1_cs : 1;
-    assign cs2 = (target_address[31:24] == 8'h01) ? clk1_cs : 1;
+    assign cs1 = (address_msb == 8'h00) ? clk1_cs : 1;
+    assign cs2 = (address_msb == 8'h01) ? clk1_cs : 1;
 
     // Maximum 4 bytes to write, 4 bytes to read
     reg [7:0] spi_clk_counter;
 
-    reg prev_sclk;
-
     always @(posedge clk) begin
         if (rst_n == 0) begin
-            state <= STATE_START;
-            spi_state <= SPI_STATE_CS_CLK_IDLE;
-            spi_tx_buffer <= 0; // Clear buffers
             spi_rx_buffer <= 0;
-            prev_sclk <= 0;
 
         end else begin
             if (start_request == 1) begin
                 if (state == STATE_START) begin
-                    state <= STATE_READ_ADDR;
-                    spi_clk_counter <= 0;
-                    spi_state <= SPI_STATE_ENABLE_CS_DELAY_CLK;
+                    spi_rx_buffer <= 0;
 
-                    // Use 3 byte address mode for now
+                end else if (state == STATE_COMMAND_RUN && spi_state == SPI_STATE_TRANSACTION) begin
+                    // Sample MISO on the very first clock edge too
+                    spi_rx_buffer <= (spi_rx_buffer << 1) | {31'b0, miso};
+                end
+            end
+        end
+    end
 
-                    // Prepare the tx buffer, the MSB is transmitted first
-                    // If write_value is specified, then it needs to be transformed
-                    // for little-endian
-                    spi_tx_buffer <= {
-                        is_write ? 8'h02: 8'h03,
-                        target_address[23:0],
-                        is_write ? {write_value[7:0], write_value[15:8], write_value[23:16], write_value[31:24]} : 32'd0
-                    };
+    always @(negedge clk) begin
+        if (rst_n == 0 || start_request == 0) begin
+            state <= STATE_START;
+            spi_state <= SPI_STATE_CS_CLK_IDLE;
 
-                end else if (state == STATE_READ_ADDR) begin
+            spi_tx_buffer <= 0;  // Clear buffers
+            spi_clk_counter <= 0;
 
-                    prev_sclk <= sclk;
+        end else if (start_request == 1) begin
 
-                    if (sclk == 1 && prev_sclk == 0) begin
-                        // Read MISO on the rising edge of the clock
-                        spi_rx_buffer <= (spi_rx_buffer << 1) | {31'b0, miso};
+            if (state == STATE_START) begin
+                // Use 3 byte address mode for now
+                state <= STATE_COMMAND_RUN;
+                spi_state <= SPI_STATE_ENABLE_CS_DELAY_CLK;
 
-                    end else if (sclk == 0 && prev_sclk == 1) begin
-                        // Shift out the bits on the falling edge of the clock.
-                        spi_tx_buffer   <= (spi_tx_buffer << 1);
-                        spi_clk_counter <= spi_clk_counter + 1;
+                // Prepare the tx buffer, the MSB is transmitted first
+                // If write_value is specified, then it needs to be transformed
+                // for little-endian
+                spi_tx_buffer <= {
+                    is_write ? 8'h02 : 8'h03,
+                    target_address[23:0],
+                    is_write ? {write_value[7:0], write_value[15:8],
+                        write_value[23:16], write_value[31:24]} : 32'd0
+                };
 
-                        if (spi_clk_counter + 1 >= ({5'd0, SPI_CMD_BYTES} + {5'd0, num_bytes}) * 8) begin
-                            spi_state <= SPI_STATE_CLK_DELAY_DISABLE_CS;
-                        end
-                    end
+                spi_clk_counter <= 0;
 
-                    // If the CS is back to 1, then change the state to show
-                    // that the read is completed.
-                    if (spi_state == SPI_STATE_CLK_DELAY_DISABLE_CS && clk1_cs == 1) begin
-                        state <= STATE_READ_ADDR_DONE;
+            end else if (state == STATE_COMMAND_RUN) begin
+                if (spi_state == SPI_STATE_ENABLE_CS_DELAY_CLK) begin
+                    spi_state <= SPI_STATE_TRANSACTION;
+
+                end else if (spi_state == SPI_STATE_TRANSACTION) begin
+                    // Shift out the bits on the falling edge of the clock.
+                    spi_tx_buffer   <= (spi_tx_buffer << 1);
+                    spi_clk_counter <= spi_clk_counter + 1;
+
+                    if (spi_clk_counter + 1  >= ({5'd0, SPI_CMD_BYTES} + {5'd0, num_bytes}) << 3) begin
+                        state <= STATE_COMMAND_DONE;
                         spi_state <= SPI_STATE_CS_CLK_IDLE;
                     end
                 end
-            end else if (start_request == 0) begin
-                // Stop everything and go back to the initial state
-                state <= STATE_START;
-                spi_state <= SPI_STATE_CS_CLK_IDLE;
-                prev_sclk <= 0;
             end
         end
     end
 
     // MSB is transmitted first, need to check if high impedance state is needed
-    assign mosi = (state == STATE_READ_ADDR && clk1_cs == 0) ?
-                    spi_tx_buffer[SPI_TX_BUFFER_SIZE-1] : 0;
+    assign mosi = clk1_cs == 0 ? spi_tx_buffer[SPI_TX_BUFFER_SIZE-1] : 0;
 
-    assign request_done = start_request && state == STATE_READ_ADDR_DONE;
+    assign request_done = (start_request == 1 && state == STATE_COMMAND_DONE);
 
     // SPI data is lowest byte address first (little-endian), so need to
     // transform the bytes
-    assign target_data = (state == STATE_READ_ADDR_DONE && start_request == 1)
-                            ?
-                            {spi_rx_buffer[7:0], spi_rx_buffer[15:8], spi_rx_buffer[23:16], spi_rx_buffer[31:24]}
-                            : 0;
+    assign target_data = request_done ?
+                            {spi_rx_buffer[7:0],   spi_rx_buffer[15:8],
+                             spi_rx_buffer[23:16], spi_rx_buffer[31:24]} : 0;
+
+    assign sclk = (spi_state == SPI_STATE_TRANSACTION) ? clk : 0;
+
+    // Set CS high, only in if in idle state
+    assign clk1_cs = spi_state == SPI_STATE_CS_CLK_IDLE;
 
 endmodule
 
-module spi_clk #(
-    parameter size = 2
-) (
+module spi_clk(
     input wire [1:0] spi_clk_state,
-    input wire refclk,
-    output wire outclk,
-    output wire cs
+    input wire clk,
+    output wire[1:0] cs_delay
 );
-    reg [size-1:0] counter;
-    reg [3:0] cs_delay;
 
-    always @(posedge refclk) begin
+    // Controls amount of delay between chip select and clk, both at the
+    // start and end of transactions
+    reg [1:0] _cs_delay;
+
+    always @(posedge clk) begin
         case (spi_clk_state)
-            SPI_STATE_CS_CLK_IDLE: begin
-                counter <= 0;
-                cs_delay <= 0;
+            SPI_STATE_CS_CLK_IDLE, SPI_STATE_TRANSACTION: begin
+                _cs_delay <= 0;
             end
-            SPI_STATE_ENABLE_CS_DELAY_CLK: begin
-                if (cs_delay > 4) begin
-                    counter <= counter + 1;
-                end else begin
-                    cs_delay <= cs_delay + 1;
-                end
-            end
-            SPI_STATE_CLK_DELAY_DISABLE_CS: begin
-                if (cs_delay < 8) begin
-                    cs_delay <= cs_delay + 1;
-                end
+            SPI_STATE_ENABLE_CS_DELAY_CLK, SPI_STATE_CLK_DELAY_DISABLE_CS: begin
+                _cs_delay <= _cs_delay + 1;
             end
             default: ;
         endcase
     end
 
-    assign outclk = (spi_clk_state == SPI_STATE_ENABLE_CS_DELAY_CLK
-                        && cs_delay > 4 && !counter[size-1]);
-
-    assign cs = !(spi_clk_state == SPI_STATE_ENABLE_CS_DELAY_CLK ||
-                (spi_clk_state == SPI_STATE_CLK_DELAY_DISABLE_CS && cs_delay < 8));
+    assign cs_delay = _cs_delay;
 
 endmodule

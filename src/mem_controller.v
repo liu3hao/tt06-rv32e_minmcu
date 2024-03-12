@@ -22,7 +22,7 @@ module mem_controller #(parameter size=32) (
     input wire clk,   // system clock
     input wire rst_n  // global reset signal reset_n - low to reset
 );
-    wire [31:0] mem_read_data;  // data fetched from memory
+    // wire [31:0] mem_read_data;  // data fetched from memory
 
     mem_external mem_external1 (
         .miso(miso),
@@ -34,7 +34,7 @@ module mem_controller #(parameter size=32) (
         .num_bytes(num_bytes),
 
         .target_address(target_address),
-        .target_data(mem_read_data),
+        .target_data(fetched_data),
 
         .is_write(is_write),
         .write_value(write_value),
@@ -46,7 +46,7 @@ module mem_controller #(parameter size=32) (
         .rst_n(rst_n)
     );
 
-    assign fetched_data = (start_request == 1) ? mem_read_data: 32'd0;
+    // assign fetched_data = (start_request == 1) ? mem_read_data: 32'd0;
 
 endmodule
 

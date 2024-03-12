@@ -7,9 +7,10 @@ from cocotb.triggers import FallingEdge, RisingEdge, First
 from cocotbext.spi import SpiSlaveBase, SpiConfig
 
 class SpiFlashPeripheral(SpiSlaveBase):
-    def __init__(self, bus, contents, name):
+    def __init__(self, bus, contents, dut, name):
         self._config = SpiConfig(
             data_output_idle=0,
+            sclk_freq=50e6,
             word_width=8,
             msb_first=True,
             cpol=0,
@@ -19,6 +20,7 @@ class SpiFlashPeripheral(SpiSlaveBase):
         # Memory contents
         self.contents = contents
         self.name = name
+        self.dut = dut
 
         super().__init__(bus)
 
@@ -42,29 +44,38 @@ class SpiFlashPeripheral(SpiSlaveBase):
         await frame_start
         self.idle.clear()
 
+        # self.debugLog('start transaction')
+
         # wait for first byte
-        first_byte = await self.read_in(8)
+        first_byte = await self.shift2(8)
+        # self.debugLog("got %d" % first_byte)
 
         if first_byte == 0x03:
-            # print('starting read operation', self.name)
+            self.debugLog('starting read operation: %s' % self.name)
             
             # Read address, next 3 bytes are read address
-            address = await self.read_in(24)
+            address = await self.shift2(24)
+            # self.debugLog('read address %d' % address)
 
             while True:
-                if (await First(RisingEdge(self._sclk), frame_end)) != frame_end:
-                    # if not a stop frame, then transmit the next byte
+                try:
                     memory_value = self.contents[address]
+                except:
+                    memory_value = 0xff
+
+                try:
                     await self.shift2(8, memory_value)
+                    # self.debugLog("shifted out value: %d %s" % (memory_value, bin(memory_value)))
                     address += 1
-                else:
+                except Exception as e:
+                    # self.debugLog("nothing to shift: %s" % e)
                     break
 
         elif first_byte == 0x02:
-            # print('starting write operation', self.name)
+            self.debugLog('starting write operation: %s' % self.name)
 
             # Write operation, next 3 bytes are starting address
-            address = await self.read_in(24)
+            address = await self.shift2(24)
 
             while True:
                 if (await First(RisingEdge(self._sclk), frame_end)) != frame_end:
@@ -86,17 +97,18 @@ class SpiFlashPeripheral(SpiSlaveBase):
         else:
             await frame_end
 
-    async def read_in(self, length):
-        result = await self._shift(length-1)
+    async def shift2(self, num_bits, value=0):
+        # immediately set miso and shift out the rest
+        self._miso.value = (value >> (num_bits-1)) & 0b1
+        result = await self._shift(num_bits-1, value)
         await RisingEdge(self._sclk)
         result = (result << 1) | int(self._mosi.value)
         await FallingEdge(self._sclk)
         return result
 
-    async def shift2(self, num_bits, value):
-        # immediately set miso and shift out the rest
-        self._miso.value = (value >> (num_bits-1)) & 0b1
-        return await self._shift(num_bits-1, value)
+
+    def debugLog(self, message):
+        self.dut._log.info(message)
 
 
 def prepare_bytes(memory_array):
@@ -160,15 +172,17 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100):
 
     ram_bytes = {}
 
+    mem_controller = dut.cpu1.mem_controller1
+
+    flash_chip = SpiFlashPeripheral(SpiBus.from_entity(mem_controller, 
     # Flash memory
-    flash_chip = SpiFlashPeripheral(SpiBus.from_entity(dut.cpu1.mem_controller1, 
                                                  cs_name='cs1'), bytes_array, 
-                                                 name='flash')  
+                                                 dut, name='flash')  
     
     # PSRAM
-    ram_chip = SpiFlashPeripheral(SpiBus.from_entity(dut.cpu1.mem_controller1, 
+    ram_chip = SpiFlashPeripheral(SpiBus.from_entity(mem_controller, 
                                                  cs_name='cs2'), ram_bytes, 
-                                                 name='ram')
+                                                 dut, name='ram')
     
     clock = Clock(dut.clk, 20, units="ns")
     cocotb.start_soon(clock.start())
