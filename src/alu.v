@@ -17,7 +17,7 @@ module alu #(
     localparam FUNC_XOR =     3'b100;
     localparam FUNC_SRL_SRA = 3'b101;
     localparam FUNC_OR =      3'b110;
-    localparam FUNC_AND =     3'b111;
+    // localparam FUNC_AND =     3'b111;
 
     wire signed [size-1:0] signed_value1;
     wire signed [size-1:0] signed_value2;

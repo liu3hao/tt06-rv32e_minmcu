@@ -10,7 +10,7 @@ localparam STATE_COMMAND_DONE = 2;
 localparam SPI_STATE_CS_CLK_IDLE =          2'd0;
 localparam SPI_STATE_ENABLE_CS_DELAY_CLK =  2'd1;
 localparam SPI_STATE_TRANSACTION =          2'd2;
-localparam SPI_STATE_CLK_DELAY_DISABLE_CS = 2'd3;
+// localparam SPI_STATE_CLK_DELAY_DISABLE_CS = 2'd3;
 
 localparam SPI_TX_BUFFER_SIZE = 64;
 localparam SPI_RX_BUFFER_SIZE = 32;
