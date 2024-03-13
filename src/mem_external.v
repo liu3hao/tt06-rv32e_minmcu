@@ -28,7 +28,7 @@ module mem_external (
     input wire [2:0] num_bytes,
 
     input  wire [31:0] target_address,
-    output wire [31:0] target_data,
+    output wire [31:0] fetched_data,
 
     input wire is_write,
     input wire [31:0] write_value,
@@ -132,7 +132,7 @@ module mem_external (
 
     // SPI data is lowest byte address first (little-endian), so need to
     // transform the bytes
-    assign target_data = request_done ?
+    assign fetched_data = request_done ?
                             {spi_rx_buffer[7:0],   spi_rx_buffer[15:8],
                              spi_rx_buffer[23:16], spi_rx_buffer[31:24]} : 0;
 
@@ -140,31 +140,5 @@ module mem_external (
 
     // Set CS high, only in if in idle state
     assign clk1_cs = spi_state == SPI_STATE_CS_CLK_IDLE;
-
-endmodule
-
-module spi_clk(
-    input wire [1:0] spi_clk_state,
-    input wire clk,
-    output wire[1:0] cs_delay
-);
-
-    // Controls amount of delay between chip select and clk, both at the
-    // start and end of transactions
-    reg [1:0] _cs_delay;
-
-    always @(posedge clk) begin
-        case (spi_clk_state)
-            SPI_STATE_CS_CLK_IDLE, SPI_STATE_TRANSACTION: begin
-                _cs_delay <= 0;
-            end
-            SPI_STATE_ENABLE_CS_DELAY_CLK, SPI_STATE_CLK_DELAY_DISABLE_CS: begin
-                _cs_delay <= _cs_delay + 1;
-            end
-            default: ;
-        endcase
-    end
-
-    assign cs_delay = _cs_delay;
 
 endmodule

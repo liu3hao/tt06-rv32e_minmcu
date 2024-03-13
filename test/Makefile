@@ -14,7 +14,6 @@ TOPLEVEL_LANG ?= verilog
 SRC_DIR = $(PWD)/../src
 PROJECT_SOURCES = project.v
 PROJECT_SOURCES += mem_external.v
-PROJECT_SOURCES += mem_controller.v
 PROJECT_SOURCES += registers.v
 PROJECT_SOURCES += alu.v
 

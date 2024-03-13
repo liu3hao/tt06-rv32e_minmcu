@@ -172,15 +172,15 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100):
 
     ram_bytes = {}
 
-    mem_controller = dut.cpu1.mem_controller1
+    mem_external = dut.cpu1.mem_external1
 
-    flash_chip = SpiFlashPeripheral(SpiBus.from_entity(mem_controller, 
+    flash_chip = SpiFlashPeripheral(SpiBus.from_entity(mem_external, 
     # Flash memory
                                                  cs_name='cs1'), bytes_array, 
                                                  dut, name='flash')  
     
     # PSRAM
-    ram_chip = SpiFlashPeripheral(SpiBus.from_entity(mem_controller, 
+    ram_chip = SpiFlashPeripheral(SpiBus.from_entity(mem_external, 
                                                  cs_name='cs2'), ram_bytes, 
                                                  dut, name='ram')
     

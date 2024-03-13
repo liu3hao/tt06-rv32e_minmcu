@@ -55,7 +55,7 @@ module tt_um_rv32e_cpu (
     // If high, then the CPU has stopped parsing further instructions
     reg halted;
 
-    mem_controller mem_controller1 (
+    mem_external mem_external1 (
         .sclk(uo_out[0]),
         .mosi(uo_out[1]),
 
@@ -63,10 +63,6 @@ module tt_um_rv32e_cpu (
         .cs2(uo_out[3]),
 
         .miso(ui_in[0]),
-
-        .is_data_fetch(
-            opcode == I_TYPE_LOAD_INSTR && state == STATE_PARSE_INSTRUCTION
-        ),
 
         .num_bytes(
             state == STATE_FETCH_INSTRUCTION ? 3'd4
@@ -162,7 +158,6 @@ module tt_um_rv32e_cpu (
 
     wire [31:0] rs1;
     wire [31:0] rs2;
-    wire [31:0] rd;
 
     // Can this be merged with rs1 and rs2?
     wire signed [31:0] signed_rs1;
