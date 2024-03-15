@@ -39,19 +39,14 @@ module tt_um_rv32e_cpu (
 
     reg [2:0] state; // State of the CPU
 
-    reg write_reg_enable;
-
     // 3 byte program counter, because the instruction address
     // is only 3-bytes long.
     reg [23:0] prog_counter;
 
     reg [31:0] fetched_data;
-    reg [31:0] mem_address;
 
     wire mem_request_done;
     reg start_mem_request;
-
-    reg mem_write;
 
     reg [31:0] current_instruction;
 
@@ -72,14 +67,19 @@ module tt_um_rv32e_cpu (
             : mem_num_bytes
         ),
 
-        .is_write(mem_write),
+        .is_write(
+            (state == STATE_PARSE_INSTRUCTION && opcode == S_TYPE_INSTR) ? 1 : 0
+        ),
         .write_value(
             (instr_func3 == 3'd0) ? { 24'd0, rs2[7:0]}
             : (instr_func3 == 3'd1) ? { 16'd0, rs2[15:0]}
             : (instr_func3 == 3'd2) ? rs2
             : 32'd0),
 
-        .target_address(mem_address),
+        .target_address(
+            // Memory space is limited to 3 bytes for now...
+            (state == STATE_FETCH_INSTRUCTION) ? {8'd0, prog_counter} : op_address
+        ),
 
         .fetched_data(fetched_data),
 
@@ -112,7 +112,7 @@ module tt_um_rv32e_cpu (
         .r_sel2(instr_rs2),
         .r_value2(rs2),
 
-        .wr_en(write_reg_enable),
+        .wr_en(state == STATE_WRITE_REGISTER && opcode != S_TYPE_INSTR),
 
         .rst_n(rst_n)
     );
@@ -207,20 +207,16 @@ module tt_um_rv32e_cpu (
             state <= STATE_FETCH_INSTRUCTION;
             prog_counter <= 0;
             current_instruction <= 0;
-            mem_address <= 0;
+            // mem_address <= 0;
             start_mem_request <= 0;
 
-            mem_write <= 0;
+            // mem_write <= 0;
             halted <= 0;
-
-            write_reg_enable <= 0;
 
         end else if (halted == 0) begin
             if (state == STATE_FETCH_INSTRUCTION) begin
                 if (mem_request_done == 0) begin
-                    mem_address <= {8'd0, prog_counter};
                     start_mem_request <= 1;
-                    mem_write <= 0;
 
                 end else begin
                     // Mem request completed, parse instruction
@@ -229,26 +225,17 @@ module tt_um_rv32e_cpu (
 
                     // Clear the fetch request for any load/store operations
                     start_mem_request <= 0;
-                    write_reg_enable <= 0;
                 end
             end else if (state == STATE_PARSE_INSTRUCTION) begin
 
-                if ((opcode == I_TYPE_LOAD_INSTR || opcode == S_TYPE_INSTR)) begin
-                    // If it's a load/store instruction, the need to create mem request
-                    if (mem_request_done == 0) begin
-                        start_mem_request <= 1;
-                        mem_write <= (opcode == I_TYPE_LOAD_INSTR) ? 0 : 1;
-                        mem_address <= op_address;
+                if ((opcode == I_TYPE_LOAD_INSTR || opcode == S_TYPE_INSTR) && mem_request_done == 0) begin
+                    // If it's a load/store instruction, then start mem request
+                    start_mem_request <= 1;
 
-                    end else begin
-                        state <= STATE_WRITE_REGISTER;
-                        write_reg_enable <= 1;
-                        start_mem_request <= 0;
-                    end
                 end else begin
-                    // For all other opcodes, write to register
+                    // When load/store is done, or if it is other ops, then
+                    // move state to write register.
                     state <= STATE_WRITE_REGISTER;
-                    write_reg_enable <= 1;
                 end
 
             end else if (state == STATE_WRITE_REGISTER) begin
