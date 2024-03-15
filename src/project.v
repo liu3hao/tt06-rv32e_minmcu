@@ -91,11 +91,11 @@ module tt_um_rv32e_cpu (
         .write_register((state == STATE_PARSE_INSTRUCTION && opcode != S_TYPE_INSTR) ? instr_rd: 4'd0),
         .write_value(
             (opcode == I_TYPE_LOAD_INSTR) ? (
-                (instr_func3 == 0) ? {fetched_data[31] == 1 ? 24'hffffff : 24'd0, fetched_data[31:24] }
-                : (instr_func3 == 3'd1) ? {fetched_data[31] == 1 ? 16'hffff : 16'd0, fetched_data[31:16]}
+                (instr_func3 == 0)      ? { {24{fetched_data[31]}}, fetched_data[31:24] }
+                : (instr_func3 == 3'd1) ? { {16{fetched_data[31]}}, fetched_data[31:16] }
                 : (instr_func3 == 3'd2) ? fetched_data
-                : (instr_func3 == 3'd4) ? {24'd0, fetched_data[31:24]}
-                : (instr_func3 == 3'd5) ? {16'd0, fetched_data[31:16]}
+                : (instr_func3 == 3'd4) ? { 24'd0, fetched_data[31:24] }
+                : (instr_func3 == 3'd5) ? { 16'd0, fetched_data[31:16] }
                 : 0)
             : (opcode == J_TYPE_INSTR || opcode == I_TYPE_JUMP_INSTR) ? ({8'd0, prog_counter} + 4)
             : (opcode == U_TYPE_LUI_INSTR) ? u_type_imm
@@ -133,27 +133,31 @@ module tt_um_rv32e_cpu (
     wire [31:0] u_type_imm;
     wire [31:0] b_type_imm;
 
+    wire [19:0] msb_sign_extend;
+
+    // rv32e only has 16 regs, so can ignore the last reg bit
     assign opcode =        current_instruction[6:0];
     assign instr_rd =      current_instruction[10:7];
     assign instr_func3 =   current_instruction[14:12];
-    assign instr_rs1 =     current_instruction[18:15]; // rv32e only has 16 regs
+    assign instr_rs1 =     current_instruction[18:15];
     assign instr_rs2 =     current_instruction[23:20];
     assign instr_func7 =   current_instruction[31:25];
 
-    assign i_type_imm =     current_instruction[31:20];
-    assign i_type_imm_sign_extended =
-        {i_type_imm[11] == 1'b1 ? 20'hfffff : 20'd0, i_type_imm};
+    assign i_type_imm =    current_instruction[31:20];
 
-    assign s_type_imm1 = current_instruction[31:25];
-    assign s_type_imm2 = current_instruction[11:7];
-    assign s_type_imm_sign_extended =
-        {s_type_imm1[6] == 1'b1 ? 20'hfffff : 20'd0, s_type_imm1, s_type_imm2};
+    assign msb_sign_extend = {20{current_instruction[31]}};
 
-    assign j_type_imm_sign_extended = {current_instruction[31] == 1'b1 ? 12'hfff : 12'h0,
+    assign i_type_imm_sign_extended = { msb_sign_extend, i_type_imm};
+
+    // assign s_type_imm1 =   current_instruction[31:25]; // same as instr_func7
+    assign s_type_imm2 =   current_instruction[11:7];
+    assign s_type_imm_sign_extended = { msb_sign_extend, instr_func7, s_type_imm2};
+
+    assign j_type_imm_sign_extended = { msb_sign_extend[11:0],
             current_instruction[19:12], current_instruction[20], current_instruction[30:21], 1'b0};
 
     assign u_type_imm = {current_instruction[31:12], 12'b0};
-    assign b_type_imm = {current_instruction[31] == 1 ? 20'hfffff: 20'h0, current_instruction[7],
+    assign b_type_imm = {msb_sign_extend, current_instruction[7],
                         current_instruction[30:25], current_instruction[11:8], 1'b0};
 
     wire [31:0] rs1;
