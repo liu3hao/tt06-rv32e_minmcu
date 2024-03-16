@@ -68,7 +68,7 @@ module tt_um_rv32e_cpu (
         ),
 
         .is_write(
-            (state == STATE_PARSE_INSTRUCTION && opcode == S_TYPE_INSTR) ? 1 : 0
+            (state == STATE_PARSE_INSTRUCTION && opcode == S_TYPE_INSTR) ? 1'd1 : 1'd0
         ),
         .write_value(
             (instr_func3 == 3'd0) ? { 24'd0, rs2[7:0]}
