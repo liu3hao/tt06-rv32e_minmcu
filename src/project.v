@@ -33,20 +33,20 @@ module tt_um_rv32e_cpu (
     assign uio_out = 0;
     assign uo_out[7:4] = 0;
 
-    localparam STATE_FETCH_INSTRUCTION = 3'd0;
-    localparam STATE_PARSE_INSTRUCTION = 3'd1;
-    localparam STATE_WRITE_REGISTER =    3'd2;
+    localparam STATE_FETCH_INSTRUCTION = 3'b001;
+    localparam STATE_PARSE_INSTRUCTION = 3'b010;
+    localparam STATE_WRITE_REGISTER =    3'b100;
 
     reg [2:0] state; // State of the CPU
 
     // 3 byte program counter, because the instruction address
-    // is only 3-bytes long.
-    reg [23:0] prog_counter;
+    // is only 3-bytes long, add 1 extra bit for flash/RAM chip access.
+    reg [24:0] prog_counter;
 
     reg [31:0] fetched_data;
 
     wire mem_request_done;
-    reg start_mem_request;
+    reg mem_start_request;
 
     reg [31:0] current_instruction;
 
@@ -62,13 +62,10 @@ module tt_um_rv32e_cpu (
 
         .miso(ui_in[0]),
 
-        .num_bytes(
-            state == STATE_FETCH_INSTRUCTION ? 3'd4
-            : mem_num_bytes
-        ),
+        .num_bytes(mem_num_bytes),
 
         .is_write(
-            (state == STATE_PARSE_INSTRUCTION && opcode == S_TYPE_INSTR) ? 1'd1 : 1'd0
+            (state == STATE_PARSE_INSTRUCTION && opcode == S_TYPE_INSTR) ? 1'b1 : 1'b0
         ),
         .write_value(
             (instr_func3 == 3'd0) ? { 24'd0, rs2[7:0]}
@@ -77,21 +74,20 @@ module tt_um_rv32e_cpu (
             : 32'd0),
 
         .target_address(
-            // Memory space is limited to 3 bytes for now...
-            (state == STATE_FETCH_INSTRUCTION) ? {8'd0, prog_counter} : op_address
+            // Memory space is limited to 3 bytes and 1 extra bit.
+            (state == STATE_FETCH_INSTRUCTION) ? prog_counter : op_address
         ),
 
         .fetched_data(fetched_data),
 
-        .start_request(start_mem_request),
+        .start_request(mem_start_request),
         .request_done(mem_request_done),
 
-        .clk(clk),
-        .rst_n(rst_n)
+        .clk(clk)
     );
 
     registers reg1 (
-        .write_register((state == STATE_PARSE_INSTRUCTION && opcode != S_TYPE_INSTR) ? instr_rd: 4'd0),
+        .write_register(instr_rd),
         .write_value(
             (opcode == I_TYPE_LOAD_INSTR) ? (
                 (instr_func3 == 0)      ? { {24{fetched_data[31]}}, fetched_data[31:24] }
@@ -100,9 +96,9 @@ module tt_um_rv32e_cpu (
                 : (instr_func3 == 3'd4) ? { 24'd0, fetched_data[31:24] }
                 : (instr_func3 == 3'd5) ? { 16'd0, fetched_data[31:16] }
                 : 0)
-            : (opcode == J_TYPE_INSTR || opcode == I_TYPE_JUMP_INSTR) ? ({8'd0, prog_counter} + 4)
+            : (opcode == J_TYPE_INSTR || opcode == I_TYPE_JUMP_INSTR) ? ({7'd0, prog_counter} + 4)
             : (opcode == U_TYPE_LUI_INSTR) ? u_type_imm
-            : (opcode == U_TYPE_AUIPC_INSTR) ? ({8'd0, prog_counter} + u_type_imm)
+            : (opcode == U_TYPE_AUIPC_INSTR) ? ({7'd0, prog_counter} + u_type_imm)
             : (instr_rd != 4'b0) ? alu_result
             : 0),
 
@@ -112,8 +108,7 @@ module tt_um_rv32e_cpu (
         .r_sel2(instr_rs2),
         .r_value2(rs2),
 
-        .wr_en(state == STATE_WRITE_REGISTER && opcode != S_TYPE_INSTR),
-
+        .wr_en((state == STATE_WRITE_REGISTER && opcode != S_TYPE_INSTR) ? 1'b1: 1'b0),
         .rst_n(rst_n)
     );
 
@@ -175,15 +170,20 @@ module tt_um_rv32e_cpu (
 
     wire [31:0] alu_result;
 
-    wire [31:0] op_address; // Stores address of the load/store operation from the instruction
-    assign op_address = (opcode == I_TYPE_LOAD_INSTR || opcode == I_TYPE_JUMP_INSTR) ? (rs1 + i_type_imm_sign_extended)
-                            : (opcode == S_TYPE_INSTR) ? (rs1 + s_type_imm_sign_extended)
-                            : 32'd0;
+    // If this is false, then assume it is a store op address
+    wire is_load = (opcode == I_TYPE_LOAD_INSTR || opcode == I_TYPE_JUMP_INSTR);
+
+    wire [31:0] tmp_op_address_add = is_load ? i_type_imm_sign_extended : s_type_imm_sign_extended;
+    wire [31:0] tmp_op_address = rs1 + tmp_op_address_add;
+
+    wire [24:0] op_address;  // Stores address of the load/store operation from the instruction
+    assign op_address = tmp_op_address[24:0];
 
     wire [2:0] mem_num_bytes;
-    assign mem_num_bytes = (instr_func3 == 3'd0 || instr_func3 == 3'd4) ? 3'd1
-                            : (instr_func3 == 3'd1 || instr_func3 == 3'd5) ? 3'd2
+    assign mem_num_bytes = (state == STATE_FETCH_INSTRUCTION) ? 3'd4
                             : (instr_func3 == 3'd2) ? 3'd4
+                            : (instr_func3 == 3'd0 || instr_func3 == 3'd4) ? 3'd1
+                            : (instr_func3 == 3'd1 || instr_func3 == 3'd5) ? 3'd2
                             : 3'd0;
 
     alu alu1 (
@@ -197,72 +197,73 @@ module tt_um_rv32e_cpu (
 
         .func_type(instr_func3),
         .f7_bit( (opcode == I_TYPE_INSTR && instr_func3 != 3'b001 && instr_func3 != 3'b101) ? 1'b0
-                    : ((instr_func7 == 7'b0100000) ? 1'b1 : 1'b0)
+                    : ((instr_func7 == 7'd32) ? 1'b1 : 1'b0)
         ),
         .result(alu_result)
     );
 
+    wire b_jump = ((instr_func3 == 3'd0 && rs1 == rs2)
+                            || (instr_func3 == 3'd1 && rs1 != rs2)
+                            || (instr_func3 == 3'd4 && signed_rs1 < signed_rs2)
+                            || (instr_func3 == 3'd5 && signed_rs1 >= signed_rs2)
+                            || (instr_func3 == 3'd6 && rs1 < rs2)
+                            || (instr_func3 == 3'd7 && rs1 >= rs2)
+                        );
+
+    wire [24:0] prog_counter_change = (opcode == J_TYPE_INSTR) ? j_type_imm_sign_extended[24:0]
+                                        : (opcode == B_TYPE_INSTR && b_jump) ? b_type_imm[24:0]
+                                        : 25'd4;
+
     always @ (posedge clk) begin
         if (rst_n == 0) begin
-            state <= STATE_FETCH_INSTRUCTION;
             prog_counter <= 0;
+            state <= STATE_FETCH_INSTRUCTION;
+            mem_start_request <= 0;
             current_instruction <= 0;
-            // mem_address <= 0;
-            start_mem_request <= 0;
-
-            // mem_write <= 0;
             halted <= 0;
 
         end else if (halted == 0) begin
-            if (state == STATE_FETCH_INSTRUCTION) begin
-                if (mem_request_done == 0) begin
-                    start_mem_request <= 1;
 
-                end else begin
-                    // Mem request completed, parse instruction
-                    state <= STATE_PARSE_INSTRUCTION;
-                    current_instruction <= fetched_data;
+            case(state)
+                STATE_FETCH_INSTRUCTION: begin
+                    if (mem_request_done == 0) begin
+                        mem_start_request <= 1;
+                    end else begin
+                        // Mem request completed, parse instruction
+                        state <= STATE_PARSE_INSTRUCTION;
+                        current_instruction <= fetched_data;
 
-                    // Clear the fetch request for any load/store operations
-                    start_mem_request <= 0;
+                        // Clear the fetch request for any load/store operations
+                        mem_start_request <= 0;
+                    end
                 end
-            end else if (state == STATE_PARSE_INSTRUCTION) begin
+                STATE_PARSE_INSTRUCTION: begin
+                    if ((opcode == I_TYPE_LOAD_INSTR || opcode == S_TYPE_INSTR) && mem_request_done == 0) begin
+                        // If it's a load/store instruction, then start mem request
+                        mem_start_request <= 1;
 
-                if ((opcode == I_TYPE_LOAD_INSTR || opcode == S_TYPE_INSTR) && mem_request_done == 0) begin
-                    // If it's a load/store instruction, then start mem request
-                    start_mem_request <= 1;
-
-                end else begin
-                    // When load/store is done, or if it is other ops, then
-                    // move state to write register.
-                    state <= STATE_WRITE_REGISTER;
+                    end else begin
+                        // When load/store is done, or if it is other ops, then
+                        // move state to write register.
+                        state <= STATE_WRITE_REGISTER;
+                    end
                 end
+                STATE_WRITE_REGISTER: begin
+                    prog_counter <= (opcode == I_TYPE_JUMP_INSTR) ? op_address
+                                    : prog_counter + prog_counter_change;
 
-            end else if (state == STATE_WRITE_REGISTER) begin
+                    state <= STATE_FETCH_INSTRUCTION;
+                    mem_start_request <= 0; // Prepare to fetch next instruction
+                    current_instruction <= 0;
 
-                prog_counter <= (opcode == I_TYPE_JUMP_INSTR) ? op_address[23:0]
-                                : prog_counter +
-                                    (
-                                        (opcode == J_TYPE_INSTR) ? j_type_imm_sign_extended[23:0]
-                                        : (opcode == B_TYPE_INSTR && (
-                                            (instr_func3 == 3'd0 && rs1 == rs2)
-                                            || (instr_func3 == 3'd1 && rs1 != rs2)
-                                            || (instr_func3 == 3'd4 && signed_rs1 < signed_rs2)
-                                            || (instr_func3 == 3'd5 && signed_rs1 >= signed_rs2)
-                                            || (instr_func3 == 3'd6 && rs1 < rs2)
-                                            || (instr_func3 == 3'd7 && rs1 >= rs2)
-                                        )) ? b_type_imm[23:0]
-                                        : 4);
-
-                state <= STATE_FETCH_INSTRUCTION;
-                start_mem_request <= 0;
-
-                // In this situation, the PC will not change anymore, so
-                // the program is halted.
-                if (opcode == J_TYPE_INSTR && i_type_imm_sign_extended == 0) begin
-                    halted <= 1;
+                    // In this situation, the PC will not change anymore, so
+                    // the program is halted.
+                    if (opcode == J_TYPE_INSTR && i_type_imm_sign_extended == 0) begin
+                        halted <= 1;
+                    end
                 end
-            end
+                default: ;
+            endcase
         end
     end
 

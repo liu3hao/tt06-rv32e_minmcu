@@ -25,20 +25,25 @@ module alu #(
     assign signed_value1 = value1;
     assign signed_value2 = value2;
 
+    reg [size-1:0] _result;
+
     // For shifts, value2 uses least significant 5 bits for a max of 32 values
-    assign result = (func_type == FUNC_ADD_SUB) ?
-                        ((f7_bit == 0) ? (value1 + value2): (value1 - value2))
-                    : (func_type == FUNC_SLL) ?  (value1 << (value2[4:0]))
-                    : (func_type == FUNC_SLT) ?  (signed_value1 < signed_value2 ? 1 : 0)
-                    : (func_type == FUNC_SLTU) ? (value1 < value2 ? 1 : 0)
-                    : (func_type == FUNC_XOR) ?  (value1 ^ value2)
-                    : (func_type == FUNC_SRL_SRA && f7_bit == 0) ? (value1 >> (value2[4:0]))
-                    : (func_type == FUNC_SRL_SRA && f7_bit == 1) ?
-                        (value1 >> value2[4:0]) | (
-                            (value1[size-1] == 0) ? 32'b0 :
-                                ~(32'hffffffff >> value2[4:0])
-                        )
-                    : (func_type == FUNC_OR) ? (value1 | value2)
-                    : (value1 & value2); // (func_type == FUNC_AND)
+    always_comb begin
+        case (func_type)
+            FUNC_ADD_SUB: _result = f7_bit ? (value1-value2) : (value1 + value2);
+            FUNC_SLL:     _result = (value1 << value2[4:0]);
+            FUNC_SLT:     _result = (signed_value1 < signed_value2 ? 1 : 0);
+            FUNC_SLTU:    _result = (value1 < value2 ? 1 : 0);
+            FUNC_XOR:     _result = (value1 ^ value2);
+            FUNC_SRL_SRA: _result = (f7_bit) ? (value1 >> value2[4:0]) | (
+                                (value1[size-1] == 0) ? 32'b0 :
+                                    ~(32'hffffffff >> value2[4:0])
+                            ) : (value1 >> (value2[4:0]));
+            FUNC_OR:      _result = value1 | value2;
+            default:      _result = value1 & value2; // FUNC_AND condition
+        endcase
+    end
+
+    assign result = _result;
 
 endmodule

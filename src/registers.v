@@ -1,6 +1,6 @@
 
 module registers #(
-    size = 32
+    parameter size = 32
 ) (
     input wire [3:0] write_register,
     input wire [size-1:0] write_value,
@@ -28,10 +28,12 @@ module registers #(
             end
 
         end else begin
-            // Writing data into registers
-            for (int i = 1; i < 16; i = i + 1) begin
-                if (write_register == i[3:0]) begin
-                    registers[i] <= write_value;
+            if (wr_en) begin
+                // Writing data into registers
+                for (int i = 1; i < 16; i = i + 1) begin
+                    if (write_register == i[3:0]) begin
+                        registers[i] <= write_value;
+                    end
                 end
             end
         end
