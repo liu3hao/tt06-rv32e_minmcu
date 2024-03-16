@@ -3,14 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-localparam STATE_START = 0;
-localparam STATE_COMMAND_RUN = 1;
-localparam STATE_COMMAND_DONE = 2;
+localparam STATE_START =            2'd0;
+localparam STATE_COMMAND_RUN =      2'd1;
+localparam STATE_COMMAND_DONE =     2'd2;
 
-localparam SPI_STATE_CS_CLK_IDLE =          2'd0;
-localparam SPI_STATE_ENABLE_CS_DELAY_CLK =  2'd1;
-localparam SPI_STATE_TRANSACTION =          2'd2;
-// localparam SPI_STATE_CLK_DELAY_DISABLE_CS = 2'd3;
+localparam SPI_STATE_CS_CLK_IDLE =          3'b001;
+localparam SPI_STATE_ENABLE_CS_DELAY_CLK =  3'b010;
+localparam SPI_STATE_TRANSACTION =          3'b100; // 3'b111 has fewer cells
 
 localparam SPI_TX_BUFFER_SIZE = 64;
 localparam SPI_RX_BUFFER_SIZE = 32;
@@ -40,8 +39,8 @@ module mem_external (
     input wire rst_n  // global reset signal reset_n - low to reset
 );
 
-    // Determines the state of the mem fetch module.
-    reg [1:0] state;
+    reg [1:0] state;      // module state
+    reg [2:0] spi_state;  // SPI state
 
     // Max tx size is 8 bytes (4 for command, with 3 byte address
     // and 4 for word)
@@ -50,15 +49,11 @@ module mem_external (
     // Only fetch up to 4 bytes for now
     reg [SPI_RX_BUFFER_SIZE - 1:0] spi_rx_buffer;
 
-    reg [1:0] spi_state;  // SPI CLK and CS state
-
     wire clk1_cs;
-    wire [7:0] address_msb;
-    assign address_msb = target_address[31:24];
 
-    // Depending on the target addres range, select the CS pin.
-    assign cs1 = (address_msb == 8'h00) ? clk1_cs : 1;
-    assign cs2 = (address_msb == 8'h01) ? clk1_cs : 1;
+    // Depending on the target address range, select the CS pin.
+    assign cs1 = ~target_address[24] ? clk1_cs  : 1'd1; // Flash chip
+    assign cs2 = target_address[24] ?  clk1_cs  : 1'd1; // RAM chip
 
     // Maximum 4 bytes to write, 4 bytes to read
     reg [7:0] spi_clk_counter;
@@ -126,7 +121,7 @@ module mem_external (
     end
 
     // MSB is transmitted first, need to check if high impedance state is needed
-    assign mosi = clk1_cs == 0 ? spi_tx_buffer[SPI_TX_BUFFER_SIZE-1] : 0;
+    assign mosi = ~(spi_state == SPI_STATE_CS_CLK_IDLE) ? spi_tx_buffer[SPI_TX_BUFFER_SIZE-1] : 0;
 
     assign request_done = (start_request == 1 && state == STATE_COMMAND_DONE);
 
@@ -139,6 +134,6 @@ module mem_external (
     assign sclk = (spi_state == SPI_STATE_TRANSACTION) ? clk : 0;
 
     // Set CS high, only in if in idle state
-    assign clk1_cs = spi_state == SPI_STATE_CS_CLK_IDLE;
+    assign clk1_cs = (spi_state == SPI_STATE_CS_CLK_IDLE);
 
 endmodule
