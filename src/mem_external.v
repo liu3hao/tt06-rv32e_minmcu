@@ -3,13 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-localparam STATE_START =            2'd0;
-localparam STATE_COMMAND_RUN =      2'd1;
-localparam STATE_COMMAND_DONE =     2'd2;
-
-localparam SPI_STATE_CS_CLK_IDLE =          3'b001;
-localparam SPI_STATE_ENABLE_CS_DELAY_CLK =  3'b010;
-localparam SPI_STATE_TRANSACTION =          3'b100; // 3'b111 has fewer cells
+localparam STATE_IDLE =                     3'b001;
+localparam STATE_RUN_TRANSACTION =          3'b010;
+localparam STATE_TRANSACTION_DONE =         3'b100;
 
 localparam SPI_TX_BUFFER_SIZE = 64;
 localparam SPI_RX_BUFFER_SIZE = 32;
@@ -39,8 +35,7 @@ module mem_external (
     input wire rst_n  // global reset signal reset_n - low to reset
 );
 
-    reg [1:0] state;      // module state
-    reg [2:0] spi_state;  // SPI state
+    reg [2:0] state;      // module state
 
     // Max tx size is 8 bytes (4 for command, with 3 byte address
     // and 4 for word)
@@ -64,76 +59,74 @@ module mem_external (
 
         end else begin
             if (start_request == 1) begin
-                if (state == STATE_START) begin
-                    spi_rx_buffer <= 0;
-
-                end else if (state == STATE_COMMAND_RUN && spi_state == SPI_STATE_TRANSACTION) begin
-                    // Sample MISO on the very first clock edge too
-                    spi_rx_buffer <= (spi_rx_buffer << 1) | {31'b0, miso};
-                end
+                case (state)
+                    STATE_IDLE: begin
+                        spi_rx_buffer <= 0;
+                    end
+                    STATE_RUN_TRANSACTION: begin
+                        // Sample MISO on the very first clock edge too
+                        spi_rx_buffer <= (spi_rx_buffer << 1) | {31'b0, miso};
+                    end
+                    default: ;
+                endcase
             end
         end
     end
 
     always @(negedge clk) begin
         if (rst_n == 0 || start_request == 0) begin
-            state <= STATE_START;
-            spi_state <= SPI_STATE_CS_CLK_IDLE;
-
+            state <= STATE_IDLE;
             spi_tx_buffer <= 0;  // Clear buffers
             spi_clk_counter <= 0;
 
         end else if (start_request == 1) begin
 
-            if (state == STATE_START) begin
-                // Use 3 byte address mode for now
-                state <= STATE_COMMAND_RUN;
-                spi_state <= SPI_STATE_ENABLE_CS_DELAY_CLK;
+            case (state)
+                STATE_IDLE: begin
+                    // Use 3 byte address mode for now
+                    state <= STATE_RUN_TRANSACTION;
 
-                // Prepare the tx buffer, the MSB is transmitted first
-                // If write_value is specified, then it needs to be transformed
-                // for little-endian
-                spi_tx_buffer <= {
-                    is_write ? 8'h02 : 8'h03,
-                    target_address[23:0],
-                    is_write ? {write_value[7:0], write_value[15:8],
-                        write_value[23:16], write_value[31:24]} : 32'd0
-                };
+                    // Prepare the tx buffer, the MSB is transmitted first
+                    // If write_value is specified, then it needs to be transformed
+                    // for little-endian
+                    spi_tx_buffer <= {
+                        is_write ? 8'h02 : 8'h03,
+                        target_address[23:0],
+                        is_write ? {write_value[7:0], write_value[15:8],
+                            write_value[23:16], write_value[31:24]} : 32'd0
+                    };
 
-                spi_clk_counter <= 0;
-
-            end else if (state == STATE_COMMAND_RUN) begin
-                if (spi_state == SPI_STATE_ENABLE_CS_DELAY_CLK) begin
-                    spi_state <= SPI_STATE_TRANSACTION;
-
-                end else if (spi_state == SPI_STATE_TRANSACTION) begin
+                    spi_clk_counter <= 0;
+                end
+                STATE_RUN_TRANSACTION: begin
                     // Shift out the bits on the falling edge of the clock.
                     spi_tx_buffer   <= (spi_tx_buffer << 1);
                     spi_clk_counter <= spi_clk_counter + 1;
 
                     if (spi_clk_counter + 1  >= ({5'd0, SPI_CMD_BYTES} + {5'd0, num_bytes}) << 3) begin
-                        state <= STATE_COMMAND_DONE;
-                        spi_state <= SPI_STATE_CS_CLK_IDLE;
+                        state <= STATE_TRANSACTION_DONE;
                     end
                 end
-            end
+                default: ;
+            endcase
         end
     end
 
-    // MSB is transmitted first, need to check if high impedance state is needed
-    assign mosi = ~(spi_state == SPI_STATE_CS_CLK_IDLE) ? spi_tx_buffer[SPI_TX_BUFFER_SIZE-1] : 0;
+    wire in_transaction;
+    assign in_transaction = (state == STATE_RUN_TRANSACTION);
 
-    assign request_done = (start_request == 1 && state == STATE_COMMAND_DONE);
+    // MSB is transmitted first, need to check if high impedance state is needed
+    assign mosi = in_transaction ? spi_tx_buffer[SPI_TX_BUFFER_SIZE-1] : 0;
+    assign sclk = in_transaction ? clk : 0;
+
+    assign request_done = (start_request == 1 && state == STATE_TRANSACTION_DONE);
 
     // SPI data is lowest byte address first (little-endian), so need to
     // transform the bytes
-    assign fetched_data = request_done ?
-                            {spi_rx_buffer[7:0],   spi_rx_buffer[15:8],
-                             spi_rx_buffer[23:16], spi_rx_buffer[31:24]} : 0;
-
-    assign sclk = (spi_state == SPI_STATE_TRANSACTION) ? clk : 0;
+    assign fetched_data = {spi_rx_buffer[7:0],   spi_rx_buffer[15:8],
+                             spi_rx_buffer[23:16], spi_rx_buffer[31:24]};
 
     // Set CS high, only in if in idle state
-    assign clk1_cs = (spi_state == SPI_STATE_CS_CLK_IDLE);
+    assign clk1_cs = (state == STATE_IDLE || state == STATE_TRANSACTION_DONE);
 
 endmodule
