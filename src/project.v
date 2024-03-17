@@ -108,7 +108,7 @@ module tt_um_rv32e_cpu (
         .r_sel2(instr_rs2),
         .r_value2(rs2),
 
-        .wr_en((state == STATE_WRITE_REGISTER && opcode != S_TYPE_INSTR) ? 1'b1: 1'b0),
+        .wr_en((state == STATE_WRITE_REGISTER && opcode != S_TYPE_INSTR && opcode !== B_TYPE_INSTR) ? 1'b1: 1'b0),
         .rst_n(rst_n)
     );
 

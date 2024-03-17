@@ -51,7 +51,7 @@ class SpiFlashPeripheral(SpiSlaveBase):
         # self.debugLog("got %d" % first_byte)
 
         if first_byte == 0x03:
-            self.debugLog('starting read operation: %s' % self.name)
+            # self.debugLog('starting read operation: %s' % self.name)
             
             # Read address, next 3 bytes are read address
             address = await self.shift2(24)
@@ -72,7 +72,7 @@ class SpiFlashPeripheral(SpiSlaveBase):
                     break
 
         elif first_byte == 0x02:
-            self.debugLog('starting write operation: %s' % self.name)
+            # self.debugLog('starting write operation: %s' % self.name)
 
             # Write operation, next 3 bytes are starting address
             address = await self.shift2(24)
@@ -207,3 +207,9 @@ def get_register(dut, index):
         return dut.cpu1.reg1._id('r%d' % index, extended=False)
     else:
         return dut.cpu1.reg1._id('registers[%d]' % index, extended=False)
+    
+def assert_registers_zero(dut, start_from, until=15):
+    for i in range(start_from, until+1):
+        assert get_register(dut, i).value == 0
+
+    return True
