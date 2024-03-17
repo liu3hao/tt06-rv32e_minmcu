@@ -43,7 +43,7 @@ module tt_um_rv32e_cpu (
     // is only 3-bytes long, add 1 extra bit for flash/RAM chip access.
     reg [24:0] prog_counter;
 
-    reg [31:0] fetched_data;
+    reg [31:0] mem_fetched_value;
 
     wire mem_request_done;
     reg mem_start_request;
@@ -52,6 +52,12 @@ module tt_um_rv32e_cpu (
 
     // If high, then the CPU has stopped parsing further instructions
     reg halted;
+
+    wire [2:0] mem_num_bytes = (state == STATE_FETCH_INSTRUCTION) ? 3'd4
+                            : (instr_func3 == 3'd2) ? 3'd4
+                            : (instr_func3 == 3'd0 || instr_func3 == 3'd4) ? 3'd1
+                            : (instr_func3 == 3'd1 || instr_func3 == 3'd5) ? 3'd2
+                            : 3'd0;
 
     mem_external mem_external1 (
         .sclk(uo_out[0]),
@@ -65,20 +71,16 @@ module tt_um_rv32e_cpu (
         .num_bytes(mem_num_bytes),
 
         .is_write(
-            (state == STATE_PARSE_INSTRUCTION && opcode == S_TYPE_INSTR) ? 1'b1 : 1'b0
+            (state == STATE_PARSE_INSTRUCTION & opcode == S_TYPE_INSTR)
         ),
-        .write_value(
-            (instr_func3 == 3'd0) ? { 24'd0, rs2[7:0]}
-            : (instr_func3 == 3'd1) ? { 16'd0, rs2[15:0]}
-            : (instr_func3 == 3'd2) ? rs2
-            : 32'd0),
+        .write_value(rs2),
 
         .target_address(
             // Memory space is limited to 3 bytes and 1 extra bit.
             (state == STATE_FETCH_INSTRUCTION) ? prog_counter : op_address
         ),
 
-        .fetched_data(fetched_data),
+        .fetched_value(mem_fetched_value),
 
         .start_request(mem_start_request),
         .request_done(mem_request_done),
@@ -89,17 +91,17 @@ module tt_um_rv32e_cpu (
     registers reg1 (
         .write_register(instr_rd),
         .write_value(
-            (opcode == I_TYPE_LOAD_INSTR) ? (
-                (instr_func3 == 0)      ? { {24{fetched_data[31]}}, fetched_data[31:24] }
-                : (instr_func3 == 3'd1) ? { {16{fetched_data[31]}}, fetched_data[31:16] }
-                : (instr_func3 == 3'd2) ? fetched_data
-                : (instr_func3 == 3'd4) ? { 24'd0, fetched_data[31:24] }
-                : (instr_func3 == 3'd5) ? { 16'd0, fetched_data[31:16] }
+            (opcode == R_TYPE_INSTR | opcode == I_TYPE_INSTR) ? alu_result
+            : (opcode == I_TYPE_LOAD_INSTR) ? (
+                (instr_func3 == 0)      ? { {24{mem_fetched_value[31]}}, mem_fetched_value[31:24] }
+                : (instr_func3 == 3'd1) ? { {16{mem_fetched_value[31]}}, mem_fetched_value[31:16] }
+                : (instr_func3 == 3'd2) ? mem_fetched_value
+                : (instr_func3 == 3'd4) ? { 24'd0, mem_fetched_value[31:24] }
+                : (instr_func3 == 3'd5) ? { 16'd0, mem_fetched_value[31:16] }
                 : 0)
-            : (opcode == J_TYPE_INSTR || opcode == I_TYPE_JUMP_INSTR) ? ({7'd0, prog_counter} + 4)
+            : (opcode == J_TYPE_INSTR | opcode == I_TYPE_JUMP_INSTR) ? ({7'd0, prog_counter} + 4)
             : (opcode == U_TYPE_LUI_INSTR) ? u_type_imm
             : (opcode == U_TYPE_AUIPC_INSTR) ? ({7'd0, prog_counter} + u_type_imm)
-            : (instr_rd != 4'b0) ? alu_result
             : 0),
 
         .r_sel1(instr_rs1),
@@ -108,7 +110,7 @@ module tt_um_rv32e_cpu (
         .r_sel2(instr_rs2),
         .r_value2(rs2),
 
-        .wr_en((state == STATE_WRITE_REGISTER && opcode != S_TYPE_INSTR && opcode !== B_TYPE_INSTR) ? 1'b1: 1'b0),
+        .wr_en(state == STATE_WRITE_REGISTER & opcode != S_TYPE_INSTR & opcode != B_TYPE_INSTR),
         .rst_n(rst_n)
     );
 
@@ -162,7 +164,6 @@ module tt_um_rv32e_cpu (
     wire [31:0] rs1;
     wire [31:0] rs2;
 
-    // Can this be merged with rs1 and rs2?
     wire signed [31:0] signed_rs1;
     wire signed [31:0] signed_rs2;
     assign signed_rs1 = rs1;
@@ -171,20 +172,13 @@ module tt_um_rv32e_cpu (
     wire [31:0] alu_result;
 
     // If this is false, then assume it is a store op address
-    wire is_load = (opcode == I_TYPE_LOAD_INSTR || opcode == I_TYPE_JUMP_INSTR);
+    wire is_load = (opcode == I_TYPE_LOAD_INSTR | opcode == I_TYPE_JUMP_INSTR);
 
     wire [31:0] tmp_op_address_add = is_load ? i_type_imm_sign_extended : s_type_imm_sign_extended;
     wire [31:0] tmp_op_address = rs1 + tmp_op_address_add;
 
     wire [24:0] op_address;  // Stores address of the load/store operation from the instruction
     assign op_address = tmp_op_address[24:0];
-
-    wire [2:0] mem_num_bytes;
-    assign mem_num_bytes = (state == STATE_FETCH_INSTRUCTION) ? 3'd4
-                            : (instr_func3 == 3'd2) ? 3'd4
-                            : (instr_func3 == 3'd0 || instr_func3 == 3'd4) ? 3'd1
-                            : (instr_func3 == 3'd1 || instr_func3 == 3'd5) ? 3'd2
-                            : 3'd0;
 
     alu alu1 (
         .value1(rs1),
@@ -197,18 +191,16 @@ module tt_um_rv32e_cpu (
 
         .func_type(instr_func3),
         .f7_bit( (opcode == I_TYPE_INSTR && instr_func3 != 3'b001 && instr_func3 != 3'b101) ? 1'b0
-                    : ((instr_func7 == 7'd32) ? 1'b1 : 1'b0)
-        ),
+                    : (instr_func7 == 7'd32)),
         .result(alu_result)
     );
 
-    wire b_jump = ((instr_func3 == 3'd0 && rs1 == rs2)
-                            || (instr_func3 == 3'd1 && rs1 != rs2)
-                            || (instr_func3 == 3'd4 && signed_rs1 < signed_rs2)
-                            || (instr_func3 == 3'd5 && signed_rs1 >= signed_rs2)
-                            || (instr_func3 == 3'd6 && rs1 < rs2)
-                            || (instr_func3 == 3'd7 && rs1 >= rs2)
-                        );
+    wire b_jump = (instr_func3 == 3'd0 & rs1 == rs2)
+                            | (instr_func3 == 3'd1 && rs1 != rs2)
+                            | (instr_func3 == 3'd4 && signed_rs1 < signed_rs2)
+                            | (instr_func3 == 3'd5 && signed_rs1 >= signed_rs2)
+                            | (instr_func3 == 3'd6 && rs1 < rs2)
+                            | (instr_func3 == 3'd7 && rs1 >= rs2);
 
     wire [24:0] prog_counter_change = (opcode == J_TYPE_INSTR) ? j_type_imm_sign_extended[24:0]
                                         : (opcode == B_TYPE_INSTR && b_jump) ? b_type_imm[24:0]
@@ -231,7 +223,7 @@ module tt_um_rv32e_cpu (
                     end else begin
                         // Mem request completed, parse instruction
                         state <= STATE_PARSE_INSTRUCTION;
-                        current_instruction <= fetched_data;
+                        current_instruction <= mem_fetched_value;
 
                         // Clear the fetch request for any load/store operations
                         mem_start_request <= 0;

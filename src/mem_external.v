@@ -10,7 +10,7 @@ localparam STATE_TRANSACTION_DONE =         3'b100;
 localparam SPI_TX_BUFFER_SIZE = 64;
 localparam SPI_RX_BUFFER_SIZE = 32;
 
-localparam SPI_CMD_BYTES = 3'd4; //1 byte for code, 3 for address bytes
+localparam SPI_CMD_BITS = 8'd32; //1 byte for code, 3 for address bytes
 
 module mem_external (
     input  wire miso,  // Main spi signals
@@ -25,7 +25,7 @@ module mem_external (
     // Limit to 3 address bytes, and 1 extra byte for whether it is 
     // flash or RAM access.
     input  wire [24:0] target_address,
-    output wire [31:0] fetched_data,
+    output wire [31:0] fetched_value,
 
     input wire is_write,
     input wire [31:0] write_value,
@@ -48,6 +48,23 @@ module mem_external (
     // Maximum 4 bytes to write, 4 bytes to read
     reg [7:0] spi_clk_counter;
 
+    reg [7:0] counter_end;
+    reg [31:0] write_value_swapped;
+
+    always_comb begin
+        case (num_bytes)
+            1:       counter_end = SPI_CMD_BITS + 8;
+            2:       counter_end = SPI_CMD_BITS + 16;
+            default: counter_end = SPI_CMD_BITS + 32;  // 4 bytes
+        endcase
+
+        // num_bytes does not matter here, since the spi clk counter will stop
+        // further bytes from being sent.
+        write_value_swapped = {
+            write_value[7:0], write_value[15:8], write_value[23:16], write_value[31:24]
+        };
+    end
+
     always @(posedge clk) begin
         if (state == STATE_RUN_TRANSACTION) begin
             // Sample MISO on the very first clock edge too
@@ -69,10 +86,9 @@ module mem_external (
                     // If write_value is specified, then it needs to be transformed
                     // for little-endian
                     spi_tx_buffer <= {
-                        {6'b0, 1'b1, ~is_write},
+                        {7'b0000001, ~is_write},
                         target_address[23:0],
-                        is_write ? {write_value[7:0], write_value[15:8],
-                            write_value[23:16], write_value[31:24]} : 32'd0
+                        write_value_swapped
                     };
 
                     spi_clk_counter <= 1; // Increase by 1, so that comparison for
@@ -83,7 +99,7 @@ module mem_external (
                     spi_tx_buffer   <= (spi_tx_buffer << 1);
                     spi_clk_counter <= spi_clk_counter + 1;
 
-                    if (spi_clk_counter  == ({5'd0, SPI_CMD_BYTES} + {5'd0, num_bytes}) << 3) begin
+                    if (spi_clk_counter == counter_end) begin
                         state <= STATE_TRANSACTION_DONE;
                     end
                 end
@@ -92,23 +108,24 @@ module mem_external (
         end
     end
 
-    wire in_transaction;
-    assign in_transaction = (state == STATE_RUN_TRANSACTION);
+    wire in_transaction = (state == STATE_RUN_TRANSACTION);
 
     // MSB is transmitted first, need to check if high impedance state is needed
-    assign mosi = in_transaction ? spi_tx_buffer[SPI_TX_BUFFER_SIZE-1] : 0;
-    assign sclk = in_transaction ? clk : 0;
+    assign mosi = in_transaction & spi_tx_buffer[SPI_TX_BUFFER_SIZE-1];
+    assign sclk = in_transaction & clk;
 
     // Depending on the target address range, select the CS pin.
     // Enable CS pins only if in transaction
-    assign cs1 = ~(~target_address[24] && in_transaction); // Flash chip
-    assign cs2 = ~(target_address[24] && in_transaction);  // RAM chip
+    assign cs1 = ~(~target_address[24] & in_transaction); // Flash chip
+    assign cs2 = ~(target_address[24] & in_transaction);  // RAM chip
 
     assign request_done = (start_request == 1 && state == STATE_TRANSACTION_DONE);
 
     // SPI data is lowest byte address first (little-endian), so need to
     // transform the bytes
-    assign fetched_data = {spi_rx_buffer[7:0],   spi_rx_buffer[15:8],
-                             spi_rx_buffer[23:16], spi_rx_buffer[31:24]};
+    assign fetched_value = (spi_rx_buffer << 24)
+                            | ((spi_rx_buffer << 8) & 32'h00ff0000)
+                            | ((spi_rx_buffer >> 8) & 32'h0000ff00)
+                            | ((spi_rx_buffer >> 24));
 
 endmodule
