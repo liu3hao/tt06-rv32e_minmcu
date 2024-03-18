@@ -5,15 +5,15 @@
 
 `define default_netname none
 
-localparam I_TYPE_INSTR =       7'h13;
-localparam R_TYPE_INSTR =       7'h33;
 localparam I_TYPE_LOAD_INSTR =  7'h03;
-localparam S_TYPE_INSTR =       7'h23;
-localparam J_TYPE_INSTR =       7'h6F;  // JAL
-localparam I_TYPE_JUMP_INSTR =  7'h67;  // JALR
-localparam U_TYPE_LUI_INSTR =   7'h37;
+localparam I_TYPE_INSTR =       7'h13;
 localparam U_TYPE_AUIPC_INSTR = 7'h17;
+localparam S_TYPE_INSTR =       7'h23;
+localparam R_TYPE_INSTR =       7'h33;
+localparam U_TYPE_LUI_INSTR =   7'h37;
 localparam B_TYPE_INSTR =       7'h63;
+localparam I_TYPE_JUMP_INSTR =  7'h67;  // JALR
+localparam J_TYPE_INSTR =       7'h6F;  // JAL
 
 module tt_um_rv32e_cpu (
     input  wire [7:0] ui_in,    // Dedicated inputs
@@ -33,9 +33,9 @@ module tt_um_rv32e_cpu (
     assign uio_out = 0;
     assign uo_out[7:4] = 0;
 
-    localparam STATE_FETCH_INSTRUCTION = 3'b001;
-    localparam STATE_PARSE_INSTRUCTION = 3'b010;
-    localparam STATE_WRITE_REGISTER =    3'b100;
+    localparam STATE_FETCH_INSTRUCTION =    3'b001;
+    localparam STATE_PARSE_INSTRUCTION =    3'b010;
+    localparam STATE_MOVE_PROG_COUNTER =    3'b100;
 
     reg [2:0] state; // State of the CPU
 
@@ -77,7 +77,7 @@ module tt_um_rv32e_cpu (
 
         .target_address(
             // Memory space is limited to 3 bytes and 1 extra bit.
-            (state == STATE_FETCH_INSTRUCTION) ? prog_counter : op_address
+            (state == STATE_FETCH_INSTRUCTION) ? prog_counter : alu_result[24:0]
         ),
 
         .fetched_value(mem_fetched_value),
@@ -91,18 +91,14 @@ module tt_um_rv32e_cpu (
     registers reg1 (
         .write_register(instr_rd),
         .write_value(
-            (opcode == R_TYPE_INSTR | opcode == I_TYPE_INSTR) ? alu_result
-            : (opcode == I_TYPE_LOAD_INSTR) ? (
+            (opcode == I_TYPE_LOAD_INSTR) ? (
                 (instr_func3 == 0)      ? { {24{mem_fetched_value[31]}}, mem_fetched_value[31:24] }
                 : (instr_func3 == 3'd1) ? { {16{mem_fetched_value[31]}}, mem_fetched_value[31:16] }
                 : (instr_func3 == 3'd2) ? mem_fetched_value
                 : (instr_func3 == 3'd4) ? { 24'd0, mem_fetched_value[31:24] }
                 : (instr_func3 == 3'd5) ? { 16'd0, mem_fetched_value[31:16] }
                 : 0)
-            : (opcode == J_TYPE_INSTR | opcode == I_TYPE_JUMP_INSTR) ? ({7'd0, prog_counter} + 4)
-            : (opcode == U_TYPE_LUI_INSTR) ? u_type_imm
-            : (opcode == U_TYPE_AUIPC_INSTR) ? ({7'd0, prog_counter} + u_type_imm)
-            : 0),
+            : alu_result),
 
         .r_sel1(instr_rs1),
         .r_value1(rs1),
@@ -110,7 +106,7 @@ module tt_um_rv32e_cpu (
         .r_sel2(instr_rs2),
         .r_value2(rs2),
 
-        .wr_en(state == STATE_WRITE_REGISTER & opcode != S_TYPE_INSTR & opcode != B_TYPE_INSTR),
+        .wr_en(state == STATE_MOVE_PROG_COUNTER & opcode != S_TYPE_INSTR & opcode != B_TYPE_INSTR),
         .rst_n(rst_n)
     );
 
@@ -163,48 +159,121 @@ module tt_um_rv32e_cpu (
 
     wire [31:0] rs1;
     wire [31:0] rs2;
-
-    wire signed [31:0] signed_rs1;
-    wire signed [31:0] signed_rs2;
-    assign signed_rs1 = rs1;
-    assign signed_rs2 = rs2;
-
     wire [31:0] alu_result;
 
-    // If this is false, then assume it is a store op address
-    wire is_load = (opcode == I_TYPE_LOAD_INSTR | opcode == I_TYPE_JUMP_INSTR);
-
-    wire [31:0] tmp_op_address_add = is_load ? i_type_imm_sign_extended : s_type_imm_sign_extended;
-    wire [31:0] tmp_op_address = rs1 + tmp_op_address_add;
-
-    wire [24:0] op_address;  // Stores address of the load/store operation from the instruction
-    assign op_address = tmp_op_address[24:0];
+    reg [31:0] alu_value1;
+    reg [31:0] alu_value2;
+    reg [2:0] alu_func_type;
+    reg alu_f7_bit;
+    reg alu_result_lsb;     // Store the LSB, so that it can be used later.
 
     alu alu1 (
-        .value1(rs1),
-        .value2(
-            (opcode == I_TYPE_INSTR && instr_func3 != 3'b001 && instr_func3 != 3'b101) ?
-                i_type_imm_sign_extended
-                : (opcode == I_TYPE_INSTR && (instr_func3 == 3'b001 || instr_func3 == 3'b101)) ? // Shift operations
-                    {28'b0, instr_rs2}
-                : rs2),
-
-        .func_type(instr_func3),
-        .f7_bit( (opcode == I_TYPE_INSTR && instr_func3 != 3'b001 && instr_func3 != 3'b101) ? 1'b0
-                    : (instr_func7 == 7'd32)),
+        .value1(alu_value1),
+        .value2(alu_value2),
+        .func_type(alu_func_type),
+        .f7_bit(alu_f7_bit),
         .result(alu_result)
     );
 
-    wire b_jump = (instr_func3 == 3'd0 & rs1 == rs2)
-                            | (instr_func3 == 3'd1 && rs1 != rs2)
-                            | (instr_func3 == 3'd4 && signed_rs1 < signed_rs2)
-                            | (instr_func3 == 3'd5 && signed_rs1 >= signed_rs2)
-                            | (instr_func3 == 3'd6 && rs1 < rs2)
-                            | (instr_func3 == 3'd7 && rs1 >= rs2);
+    always_comb begin
+        alu_func_type = 0;
+        alu_f7_bit    = 0;
 
-    wire [24:0] prog_counter_change = (opcode == J_TYPE_INSTR) ? j_type_imm_sign_extended[24:0]
-                                        : (opcode == B_TYPE_INSTR && b_jump) ? b_type_imm[24:0]
-                                        : 25'd4;
+        case (state)
+            STATE_PARSE_INSTRUCTION: begin
+
+                case (opcode)
+                    U_TYPE_AUIPC_INSTR, J_TYPE_INSTR, I_TYPE_JUMP_INSTR: begin
+                        alu_value1 = {7'd0, prog_counter};
+                    end
+                    U_TYPE_LUI_INSTR:   alu_value1 = 0;
+
+                    // For B_TYPE, set alu_value1 to rs1
+                    default:            alu_value1 = rs1;
+                endcase
+
+                case (opcode)
+                    I_TYPE_LOAD_INSTR:
+                        alu_value2 = i_type_imm_sign_extended;
+                    I_TYPE_INSTR:
+                        if (instr_func3 == 3'b001 || instr_func3 == 3'b101) begin
+                            alu_value2 = {28'b0, instr_rs2};
+                        end else begin
+                            alu_value2 = i_type_imm_sign_extended;
+                        end
+                    S_TYPE_INSTR:                         alu_value2 = s_type_imm_sign_extended;
+                    J_TYPE_INSTR, I_TYPE_JUMP_INSTR:      alu_value2 = 32'd4;
+                    U_TYPE_AUIPC_INSTR, U_TYPE_LUI_INSTR: alu_value2 = u_type_imm;
+
+                    // For B_TYPE, set alu_value2 to rs2
+                    default:                              alu_value2 = rs2;
+                endcase
+
+                case (opcode)
+                    R_TYPE_INSTR, I_TYPE_INSTR: begin
+                        alu_func_type = instr_func3;
+                        alu_f7_bit    =  (opcode == I_TYPE_INSTR && instr_func3 != 3'b001 && instr_func3 != 3'b101) ? 1'b0
+                                        : instr_func7[5];
+                    end
+                    B_TYPE_INSTR: begin
+                        case (instr_func3)
+                            3'd4, 3'd5: alu_func_type = 3'b010;
+                            3'd6, 3'd7: alu_func_type = 3'b011;
+                            default:    alu_func_type = 3'b000;
+                        endcase
+                    end
+                    default: begin
+                        alu_func_type = 3'd0;
+                        alu_f7_bit =    1'd0;
+                    end
+                endcase
+            end
+            STATE_MOVE_PROG_COUNTER: begin
+                alu_value1 = {7'd0, prog_counter};
+                alu_value2 = 32'd4;
+
+                case (opcode)
+                    I_TYPE_JUMP_INSTR: begin
+                        alu_value1 = rs1;
+                        alu_value2 = i_type_imm_sign_extended;
+                    end
+                    J_TYPE_INSTR: alu_value2 = j_type_imm_sign_extended;
+                    B_TYPE_INSTR: begin
+                        alu_value2 = 32'd4;
+                        case (instr_func3)
+                            3'd0: begin
+                                if (rs1 == rs2) begin
+                                    alu_value2 = b_type_imm;
+                                end
+                            end
+                            3'd1: begin
+                                if (rs1 != rs2) begin
+                                    alu_value2 = b_type_imm;
+                                end
+                            end
+                            3'd4, 3'd6: begin
+                                if (alu_result_lsb) begin
+                                    alu_value2 = b_type_imm;
+                                end
+                            end
+                            3'd5, 3'd7: begin
+                                // If bit is 0, then greater or equal is true
+                                if (~alu_result_lsb) begin
+                                    alu_value2 = b_type_imm;
+                                end
+                            end
+                            default: alu_value2 = 32'd4;
+                        endcase
+                    end
+                    default: alu_value2 = 32'd4;
+                endcase
+            end
+            default: begin
+                alu_value1 = 0;
+                alu_value2 = 0;
+            end
+        endcase
+    end
 
     always @ (posedge clk) begin
         if (rst_n == 0) begin
@@ -233,20 +302,16 @@ module tt_um_rv32e_cpu (
                     if ((opcode == I_TYPE_LOAD_INSTR || opcode == S_TYPE_INSTR) && mem_request_done == 0) begin
                         // If it's a load/store instruction, then start mem request
                         mem_start_request <= 1;
-
                     end else begin
-                        // When load/store is done, or if it is other ops, then
-                        // move state to write register.
-                        state <= STATE_WRITE_REGISTER;
+                        // If not a load/store instruction, or if mem request is done, then move on.
+                        state <= STATE_MOVE_PROG_COUNTER;
+                        alu_result_lsb <= alu_result[0];
                     end
                 end
-                STATE_WRITE_REGISTER: begin
-                    prog_counter <= (opcode == I_TYPE_JUMP_INSTR) ? op_address
-                                    : prog_counter + prog_counter_change;
-
+                STATE_MOVE_PROG_COUNTER: begin
+                    prog_counter <= alu_result[24:0];
                     state <= STATE_FETCH_INSTRUCTION;
                     mem_start_request <= 0; // Prepare to fetch next instruction
-                    current_instruction <= 0;
 
                     // In this situation, the PC will not change anymore, so
                     // the program is halted.
