@@ -119,7 +119,7 @@ module mem_external (
     assign cs1 = ~(~target_address[24] & in_transaction); // Flash chip
     assign cs2 = ~(target_address[24] & in_transaction);  // RAM chip
 
-    assign request_done = (start_request == 1 && state == STATE_TRANSACTION_DONE);
+    assign request_done = (start_request == 1 & state == STATE_TRANSACTION_DONE);
 
     // SPI data is lowest byte address first (little-endian), so need to
     // transform the bytes

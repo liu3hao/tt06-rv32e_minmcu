@@ -71,13 +71,13 @@ module tt_um_rv32e_cpu (
         .num_bytes(mem_num_bytes),
 
         .is_write(
-            (state == STATE_PARSE_INSTRUCTION & opcode == S_TYPE_INSTR)
+            state == STATE_PARSE_INSTRUCTION & opcode == S_TYPE_INSTR
         ),
         .write_value(rs2),
 
         .target_address(
             // Memory space is limited to 3 bytes and 1 extra bit.
-            (state == STATE_FETCH_INSTRUCTION) ? prog_counter : alu_result[24:0]
+            alu_result[24:0]
         ),
 
         .fetched_value(mem_fetched_value),
@@ -180,6 +180,10 @@ module tt_um_rv32e_cpu (
         alu_f7_bit    = 0;
 
         case (state)
+            STATE_FETCH_INSTRUCTION: begin
+                alu_value1 = {7'd0, prog_counter};
+                alu_value2 = 0;
+            end
             STATE_PARSE_INSTRUCTION: begin
 
                 case (opcode)
