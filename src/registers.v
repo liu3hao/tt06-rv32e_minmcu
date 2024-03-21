@@ -28,12 +28,10 @@ module registers #(
             end
 
         end else begin
-            if (wr_en) begin
-                // Writing data into registers
-                for (int i = 1; i < 16; i = i + 1) begin
-                    if (write_register == i[3:0]) begin
-                        registers[i] <= write_value;
-                    end
+            // Writing data into registers
+            for (int i = 1; i < 16; i = i + 1) begin
+                if (write_register == i[3:0] && wr_en) begin
+                    registers[i] <= write_value;
                 end
             end
         end

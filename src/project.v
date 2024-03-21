@@ -15,6 +15,12 @@ localparam B_TYPE_INSTR =       7'h63;
 localparam I_TYPE_JUMP_INSTR =  7'h67;  // JALR
 localparam J_TYPE_INSTR =       7'h6F;  // JAL
 
+localparam INSTR_F3_0 =     5'b00001;
+localparam INSTR_F3_1 =     5'b00010;
+localparam INSTR_F3_2 =     5'b00100;
+localparam INSTR_F3_4 =     5'b01000;
+localparam INSTR_F3_5 =     5'b10000;
+
 module tt_um_rv32e_cpu (
     input  wire [7:0] ui_in,    // Dedicated inputs
     output wire [7:0] uo_out,   // Dedicated outputs
@@ -38,6 +44,7 @@ module tt_um_rv32e_cpu (
     localparam STATE_MOVE_PROG_COUNTER =    3'b100;
 
     reg [2:0] state; // State of the CPU
+    reg rst_n_regs;
 
     // 3 byte program counter, because the instruction address
     // is only 3-bytes long, add 1 extra bit for flash/RAM chip access.
@@ -88,16 +95,32 @@ module tt_um_rv32e_cpu (
         .clk(clk)
     );
 
+    reg [4:0] instr_func3_1hot;
+    reg [31:0] mem_fetch_value2;
+
+    always_comb begin
+        // Convert to 1-hot encoding
+        case (instr_func3)
+            0:       instr_func3_1hot = INSTR_F3_0;
+            1:       instr_func3_1hot = INSTR_F3_1;
+            2:       instr_func3_1hot = INSTR_F3_2;
+            4:       instr_func3_1hot = INSTR_F3_4;
+            default: instr_func3_1hot = INSTR_F3_5;
+        endcase
+
+        case (instr_func3_1hot)
+            INSTR_F3_0: mem_fetch_value2 = {{24{mem_fetched_value[31]}}, mem_fetched_value[31:24]};
+            INSTR_F3_1: mem_fetch_value2 = {{16{mem_fetched_value[31]}}, mem_fetched_value[31:16]};
+            INSTR_F3_2: mem_fetch_value2 = mem_fetched_value;
+            INSTR_F3_4: mem_fetch_value2 = {24'd0, mem_fetched_value[31:24]};
+            default:    mem_fetch_value2 = {16'd0, mem_fetched_value[31:16]};
+        endcase
+    end
+
     registers reg1 (
         .write_register(instr_rd),
         .write_value(
-            (opcode == I_TYPE_LOAD_INSTR) ? (
-                (instr_func3 == 0)      ? { {24{mem_fetched_value[31]}}, mem_fetched_value[31:24] }
-                : (instr_func3 == 3'd1) ? { {16{mem_fetched_value[31]}}, mem_fetched_value[31:16] }
-                : (instr_func3 == 3'd2) ? mem_fetched_value
-                : (instr_func3 == 3'd4) ? { 24'd0, mem_fetched_value[31:24] }
-                : (instr_func3 == 3'd5) ? { 16'd0, mem_fetched_value[31:16] }
-                : 0)
+            (opcode == I_TYPE_LOAD_INSTR) ? mem_fetch_value2
             : alu_result),
 
         .r_sel1(instr_rs1),
@@ -107,7 +130,7 @@ module tt_um_rv32e_cpu (
         .r_value2(rs2),
 
         .wr_en(state == STATE_MOVE_PROG_COUNTER & opcode != S_TYPE_INSTR & opcode != B_TYPE_INSTR),
-        .rst_n(rst_n)
+        .rst_n(rst_n_regs)
     );
 
     wire [6:0] opcode;
@@ -121,7 +144,7 @@ module tt_um_rv32e_cpu (
     wire [11:0] i_type_imm;
     wire [31:0] i_type_imm_sign_extended;
 
-    wire [6:0] s_type_imm1;
+    // wire [6:0] s_type_imm1;
     wire [4:0] s_type_imm2;
     wire [31:0] s_type_imm_sign_extended;
 
@@ -280,6 +303,7 @@ module tt_um_rv32e_cpu (
     end
 
     always @ (posedge clk) begin
+        rst_n_regs <= rst_n;
         if (rst_n == 0) begin
             prog_counter <= 0;
             state <= STATE_FETCH_INSTRUCTION;
