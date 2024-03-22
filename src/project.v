@@ -44,7 +44,6 @@ module tt_um_rv32e_cpu (
     localparam STATE_MOVE_PROG_COUNTER =    3'b100;
 
     reg [2:0] state; // State of the CPU
-    reg rst_n_regs;
 
     // 3 byte program counter, because the instruction address
     // is only 3-bytes long, add 1 extra bit for flash/RAM chip access.
@@ -129,8 +128,10 @@ module tt_um_rv32e_cpu (
         .r_sel2(instr_rs2),
         .r_value2(rs2),
 
-        .wr_en(state == STATE_MOVE_PROG_COUNTER & opcode != S_TYPE_INSTR & opcode != B_TYPE_INSTR),
-        .rst_n(rst_n_regs)
+        .wr_en(state == STATE_PARSE_INSTRUCTION & opcode != S_TYPE_INSTR & opcode != B_TYPE_INSTR),
+
+        .clk(clk),
+        .rst_n(rst_n)
     );
 
     wire [6:0] opcode;
@@ -303,7 +304,6 @@ module tt_um_rv32e_cpu (
     end
 
     always @ (posedge clk) begin
-        rst_n_regs <= rst_n;
         if (rst_n == 0) begin
             prog_counter <= 0;
             state <= STATE_FETCH_INSTRUCTION;

@@ -1,6 +1,7 @@
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import ClockCycles, RisingEdge, FallingEdge
+from cocotb.binary import BinaryValue
 
 from cocotbext.spi import SpiBus
 from cocotb.triggers import FallingEdge, RisingEdge, First
@@ -76,6 +77,8 @@ class SpiFlashPeripheral(SpiSlaveBase):
 
             # Write operation, next 3 bytes are starting address
             address = await self.shift2(24)
+
+            # self.debugLog('write to address: %d' % address)
 
             while True:
                 if (await First(RisingEdge(self._sclk), frame_end)) != frame_end:
@@ -156,7 +159,7 @@ def load_binary(path):
     return output
 
 async def run_program(dut, raw='', memory=None, wait_cycles=100):
-    dut._log.info("Run program")
+    # dut._log.info("Run program")
 
     if raw != '':
         memory = []
@@ -172,15 +175,13 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100):
 
     ram_bytes = {}
 
-    mem_external = dut.cpu1.mem_external1
-
-    flash_chip = SpiFlashPeripheral(SpiBus.from_entity(mem_external, 
+    flash_chip = SpiFlashPeripheral(SpiBus.from_entity(dut, 
     # Flash memory
                                                  cs_name='cs1'), bytes_array, 
                                                  dut, name='flash')  
     
     # PSRAM
-    ram_chip = SpiFlashPeripheral(SpiBus.from_entity(mem_external, 
+    ram_chip = SpiFlashPeripheral(SpiBus.from_entity(dut, 
                                                  cs_name='cs2'), ram_bytes, 
                                                  dut, name='ram')
     
@@ -188,7 +189,7 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100):
     cocotb.start_soon(clock.start())
 
     # Reset
-    dut._log.info("Reset")
+    # dut._log.info("Reset")
     dut.ena.value = 1
     dut.rst_n.value = 0
 
@@ -196,20 +197,36 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100):
     dut.rst_n.value = 1
 
     await RisingEdge(dut.cpu1.halted)
-    dut._log.info('CPU halted')
+    # dut._log.info('CPU halted')
 
     await ClockCycles(dut.clk, wait_cycles)
 
     return ram_chip, flash_chip
 
 def get_register(dut, index):
-    if False:
-        return dut.cpu1.reg1._id('r%d' % index, extended=False)
+
+    gate_level_tests = False
+
+    if gate_level_tests:
+        # gate level tests
+        value = 0
+        for i in range(0, 32):
+            bit = dut.cpu1._id('\\reg1.registers[%d][%d]' % (index, i), extended = False)
+            value = (int(bit) << i) | value
+        return ValueWrapper(value)
     else:
-        return dut.cpu1.reg1._id('registers[%d]' % index, extended=False)
+        if False:
+            return dut.cpu1.reg1._id('r%d' % index, extended=False)
+        else:
+            return dut.cpu1.reg1._id('registers[%d]' % index, extended=False)
     
 def assert_registers_zero(dut, start_from, until=15):
     for i in range(start_from, until+1):
         assert get_register(dut, i).value == 0
 
     return True
+
+class ValueWrapper:
+    def __init__(self, value) -> None:
+        self.raw_value = value
+        self.value = BinaryValue(value)
