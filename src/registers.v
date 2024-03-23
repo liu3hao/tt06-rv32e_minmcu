@@ -3,16 +3,17 @@ module registers #(
     parameter size = 32
 ) (
     input wire [3:0] write_register,
-    input wire [size-1:0] write_value,
+    input wire write_value,
 
     // up to 16 registers
     input wire [3:0] r_sel1,
-    output wire [size-1:0] r_value1,
+    output wire r_value1,
 
     input wire [3:0] r_sel2,
-    output wire [size-1:0] r_value2,
+    output wire r_value2,
 
     input wire wr_en,
+    input wire shift,
 
     input wire clk,
     input wire rst_n
@@ -20,21 +21,26 @@ module registers #(
     reg [size-1:0] registers[16];  // Array of 16 32-bit registers
 
     // Reading data from registers
-    assign r_value1 = registers[r_sel1];
-    assign r_value2 = registers[r_sel2];
+    assign r_value1 = registers[r_sel1][31];
+    assign r_value2 = registers[r_sel2][31];
 
     always @(posedge clk) begin
         if (rst_n == 0) begin
-            for (int i = 1; i < 16; i = i + 1) begin
+            for (int i = 0; i < 16; i = i + 1) begin
                 registers[i] <= 0;
             end
         end else begin
-             if (wr_en) begin
-                registers[write_register] <= write_value;
+
+            if (shift) begin
+                for (int i = 1; i < 16; i = i + 1) begin
+                    registers[i] <= (registers[i] << 1) | {31'd0, registers[i][size-1]};
+                end
+            end
+
+             if (wr_en && write_register != 0) begin
+                registers[write_register][1] <= write_value;
             end
         end
-
-        registers[0] <= 0;
     end
 
 endmodule

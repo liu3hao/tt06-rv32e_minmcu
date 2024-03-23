@@ -39,11 +39,13 @@ module tt_um_rv32e_cpu (
     assign uio_out = 0;
     assign uo_out[7:4] = 0;
 
-    localparam STATE_FETCH_INSTRUCTION =    3'b001;
-    localparam STATE_PARSE_INSTRUCTION =    3'b010;
-    localparam STATE_MOVE_PROG_COUNTER =    3'b100;
+    localparam STATE_FETCH_INSTRUCTION =    5'b00001;
+    localparam STATE_READ_REGISTERS    =    5'b00010;
+    localparam STATE_PARSE_INSTRUCTION =    5'b00100;
+    localparam STATE_WRITE_REGISTER    =    5'b01000;
+    localparam STATE_MOVE_PROG_COUNTER =    5'b10000;
 
-    reg [2:0] state; // State of the CPU
+    reg [4:0] state; // State of the CPU
 
     // 3 byte program counter, because the instruction address
     // is only 3-bytes long, add 1 extra bit for flash/RAM chip access.
@@ -58,6 +60,11 @@ module tt_um_rv32e_cpu (
 
     // If high, then the CPU has stopped parsing further instructions
     reg halted;
+
+    reg reg_shift;                      // If 1, then register file will start shifting
+    reg [4:0] reg_counter;              // Count up to 32 for shifting into register file
+    reg reg_write_value;                // Holds current bit to store in registers
+    reg [31:0] full_reg_write_value;    // Holds full word to be stored in registers
 
     wire [2:0] mem_num_bytes = (state == STATE_FETCH_INSTRUCTION) ? 3'd4
                             : (instr_func3 == 3'd2) ? 3'd4
@@ -118,21 +125,28 @@ module tt_um_rv32e_cpu (
 
     registers reg1 (
         .write_register(instr_rd),
-        .write_value(
-            (opcode == I_TYPE_LOAD_INSTR) ? mem_fetch_value2
-            : alu_result),
+        .write_value(full_reg_write_value[0]),
+            // (opcode == I_TYPE_LOAD_INSTR) ? mem_fetch_value2
+            // : alu_result
 
         .r_sel1(instr_rs1),
-        .r_value1(rs1),
+        .r_value1(rs1_bit),
 
         .r_sel2(instr_rs2),
-        .r_value2(rs2),
+        .r_value2(rs2_bit),
 
-        .wr_en(state == STATE_PARSE_INSTRUCTION & opcode != S_TYPE_INSTR & opcode != B_TYPE_INSTR),
+        .wr_en(state == STATE_WRITE_REGISTER & opcode != S_TYPE_INSTR & opcode != B_TYPE_INSTR),
+        .shift(reg_shift),
 
         .clk(clk),
         .rst_n(rst_n)
     );
+
+    reg [31:0] rs1;
+    reg [31:0] rs2;
+
+    wire rs1_bit;
+    wire rs2_bit;
 
     wire [6:0] opcode;
     wire [3:0] instr_rs1;
@@ -181,8 +195,6 @@ module tt_um_rv32e_cpu (
     assign b_type_imm = {msb_sign_extend, current_instruction[7],
                         current_instruction[30:25], current_instruction[11:8], 1'b0};
 
-    wire [31:0] rs1;
-    wire [31:0] rs2;
     wire [31:0] alu_result;
 
     reg [31:0] alu_value1;
@@ -311,6 +323,9 @@ module tt_um_rv32e_cpu (
             current_instruction <= 0;
             halted <= 0;
 
+            rs1 <= 0;
+            rs2 <= 0;
+
         end else if (halted == 0) begin
 
             case(state)
@@ -319,23 +334,58 @@ module tt_um_rv32e_cpu (
                         mem_start_request <= 1;
                     end else begin
                         // Mem request completed, parse instruction
-                        state <= STATE_PARSE_INSTRUCTION;
+                        state <= STATE_READ_REGISTERS;
                         current_instruction <= mem_fetched_value;
 
                         // Clear the fetch request for any load/store operations
                         mem_start_request <= 0;
+
+                        reg_counter <= 0;
+                        full_reg_write_value <= 0;
+                        reg_shift <= 0;     // Prepare to read out register values
                     end
                 end
+
+                STATE_READ_REGISTERS: begin
+                    if (reg_shift == 1) begin
+                        // Read out registers first before reading alu results
+                        rs1 <= (rs1 << 1) | {31'd0, rs1_bit};
+                        rs2 <= (rs2 << 1) | {31'd0, rs2_bit};
+                        reg_counter <= reg_counter + 1;
+                    end else begin
+                        reg_shift <= 1;
+                    end
+
+                    if (reg_counter == 5'd31) begin
+                        reg_counter <= 0;
+                        reg_shift <= 0;
+                        state <= STATE_PARSE_INSTRUCTION;
+                    end
+                end
+
                 STATE_PARSE_INSTRUCTION: begin
                     if ((opcode == I_TYPE_LOAD_INSTR || opcode == S_TYPE_INSTR) && mem_request_done == 0) begin
                         // If it's a load/store instruction, then start mem request
                         mem_start_request <= 1;
                     end else begin
                         // If not a load/store instruction, or if mem request is done, then move on.
-                        state <= STATE_MOVE_PROG_COUNTER;
+                        state <= STATE_WRITE_REGISTER;
                         alu_result_lsb <= alu_result[0];
+                        full_reg_write_value <= (opcode == I_TYPE_LOAD_INSTR) ? mem_fetch_value2: alu_result;
+                        reg_shift <= 1;
                     end
                 end
+
+                STATE_WRITE_REGISTER: begin
+                    full_reg_write_value <= (full_reg_write_value << 1) | {31'd0, full_reg_write_value[31]};
+                    reg_counter <= reg_counter + 1;
+
+                     if (reg_counter == 5'd31) begin
+                        state <= STATE_MOVE_PROG_COUNTER;
+                        reg_shift <= 0;
+                    end
+                end
+
                 STATE_MOVE_PROG_COUNTER: begin
                     prog_counter <= alu_result[24:0];
                     state <= STATE_FETCH_INSTRUCTION;
