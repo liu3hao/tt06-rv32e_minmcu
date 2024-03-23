@@ -61,7 +61,7 @@ module tt_um_rv32e_cpu (
     // If high, then the CPU has stopped parsing further instructions
     reg halted;
 
-    reg reg_shift;                      // If 1, then register file will start shifting
+    reg reg_shift;                      // If 1, then register file will shift
     reg [4:0] reg_counter;              // Count up to 32 for shifting into register file
     reg reg_write_value;                // Holds current bit to store in registers
     reg [31:0] full_reg_write_value;    // Holds full word to be stored in registers
@@ -125,7 +125,7 @@ module tt_um_rv32e_cpu (
 
     registers reg1 (
         .write_register(instr_rd),
-        .write_value(full_reg_write_value[0]),
+        .write_value(full_reg_write_value[1:0]),
             // (opcode == I_TYPE_LOAD_INSTR) ? mem_fetch_value2
             // : alu_result
 
@@ -145,8 +145,8 @@ module tt_um_rv32e_cpu (
     reg [31:0] rs1;
     reg [31:0] rs2;
 
-    wire rs1_bit;
-    wire rs2_bit;
+    wire [1:0] rs1_bit;
+    wire [1:0] rs2_bit;
 
     wire [6:0] opcode;
     wire [3:0] instr_rs1;
@@ -325,6 +325,7 @@ module tt_um_rv32e_cpu (
 
             rs1 <= 0;
             rs2 <= 0;
+            reg_shift <= 0;
 
         end else if (halted == 0) begin
 
@@ -349,14 +350,14 @@ module tt_um_rv32e_cpu (
                 STATE_READ_REGISTERS: begin
                     if (reg_shift == 1) begin
                         // Read out registers first before reading alu results
-                        rs1 <= (rs1 << 1) | {31'd0, rs1_bit};
-                        rs2 <= (rs2 << 1) | {31'd0, rs2_bit};
+                        rs1 <= (rs1 << 2) | {30'd0, rs1_bit};
+                        rs2 <= (rs2 << 2) | {30'd0, rs2_bit};
                         reg_counter <= reg_counter + 1;
                     end else begin
                         reg_shift <= 1;
                     end
 
-                    if (reg_counter == 5'd31) begin
+                    if (reg_counter == 5'd15) begin
                         reg_counter <= 0;
                         reg_shift <= 0;
                         state <= STATE_PARSE_INSTRUCTION;
@@ -377,10 +378,10 @@ module tt_um_rv32e_cpu (
                 end
 
                 STATE_WRITE_REGISTER: begin
-                    full_reg_write_value <= (full_reg_write_value << 1) | {31'd0, full_reg_write_value[31]};
+                    full_reg_write_value <= (full_reg_write_value << 2) | {30'd0, full_reg_write_value[31:30]};
                     reg_counter <= reg_counter + 1;
 
-                     if (reg_counter == 5'd31) begin
+                     if (reg_counter == 5'd15) begin
                         state <= STATE_MOVE_PROG_COUNTER;
                         reg_shift <= 0;
                     end

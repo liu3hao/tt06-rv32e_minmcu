@@ -5,6 +5,25 @@ import cocotb
 from helpers import get_register, load_binary, assert_registers_zero, run_program
 
 @cocotb.test()
+async def test_addi_add_shift_reg_check(dut):
+    # addi x1, x0, 2239
+    # addi x4, x1, 20
+    # addi x2, x4, 10
+
+    await run_program(dut, '''
+        8BF00093
+        01408213
+        00A20113
+        0000006f
+        ''')
+
+    assert get_register(dut, 1).value.signed_integer == -1857
+    assert get_register(dut, 2).value.signed_integer == -1827
+    assert get_register(dut, 3).value == 0
+    assert get_register(dut, 4).value.signed_integer == -1837
+    assert_registers_zero(dut, 5)
+
+@cocotb.test()
 async def test_addi_add(dut):
     # addi x1, x1, 1000
     # addi x2, x1, 2000
