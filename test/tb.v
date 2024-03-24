@@ -34,6 +34,9 @@ module tb ();
     wire cs1 = uo_out[4];
     wire cs2 = uio_out[0];
 
+    wire out0 = uo_out[1];
+    wire io4 = uio_out[7];
+
     reg miso;
     always_comb begin
         ui_in[2] = miso;

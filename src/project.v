@@ -16,7 +16,7 @@ localparam I_TYPE_JUMP_INSTR =  7'h67;  // JALR
 localparam J_TYPE_INSTR =       7'h6F;  // JAL
 
 module tt_um_rv32e_cpu # (
-        parameter address_size = 16+1
+        parameter address_size = 16+2
     )(
     input  wire [7:0] ui_in,    // Dedicated inputs
     output wire [7:0] uo_out,   // Dedicated outputs
@@ -31,10 +31,10 @@ module tt_um_rv32e_cpu # (
 );
 
     // Not used yet.
-    assign uio_oe = 8'b00000001;
-    assign uio_out[7:1] = 0;
-    assign uo_out[2:0] = 0;
-    assign uo_out[7:6] = 0;
+    // assign uio_oe = 8'b00000001;
+    assign uio_oe[2:0] = 0;
+    assign uio_out[2:1] = 0;
+    assign uo_out[0] = 0;
 
     localparam STATE_FETCH_INSTRUCTION =    5'b00001;
     localparam STATE_READ_REGISTERS    =    5'b00010;
@@ -68,7 +68,7 @@ module tt_um_rv32e_cpu # (
                             : (instr_func3 == 3'd1 || instr_func3 == 3'd5) ? 3'd2
                             : 3'd0;
 
-    mem_external #(.address_size(address_size)) mem_external1(
+    mem_bus #(.address_size(address_size)) mem_external1(
         .sclk(uo_out[5]),
         .mosi(uo_out[3]),
 
@@ -78,6 +78,13 @@ module tt_um_rv32e_cpu # (
         .miso(ui_in[2]),
 
         .num_bytes(mem_num_bytes),
+
+        .inputs({ui_in[6:3], ui_in[1:0]}),      // input only pins
+        .outputs({uo_out[7:6], uo_out[2:1]}),   // output only pins
+
+        .io_direction(uio_oe[7:3]),             // direction for io pins
+        .io_outputs(uio_out[7:3]),              // io pins output
+        .io_inputs(uio_in[7:3]),                // io pins input
 
         .is_write(
             state == STATE_PARSE_INSTRUCTION & opcode == S_TYPE_INSTR
@@ -94,7 +101,8 @@ module tt_um_rv32e_cpu # (
         .start_request(mem_start_request),
         .request_done(mem_request_done),
 
-        .clk(clk)
+        .clk(clk),
+        .rst_n(rst_n)
     );
 
     reg [31:0] mem_fetch_value2;
@@ -212,14 +220,14 @@ module tt_um_rv32e_cpu # (
 
         case (state)
             STATE_FETCH_INSTRUCTION: begin
-                alu_value1 = {15'd0, prog_counter};
+                alu_value1 = {{32-address_size{1'b0}}, prog_counter};
                 alu_value2 = 0;
             end
             STATE_PARSE_INSTRUCTION: begin
 
                 case (opcode)
                     U_TYPE_AUIPC_INSTR, J_TYPE_INSTR, I_TYPE_JUMP_INSTR: begin
-                        alu_value1 = {15'd0, prog_counter};
+                        alu_value1 = {{32-address_size{1'b0}}, prog_counter};
                     end
                     U_TYPE_LUI_INSTR:   alu_value1 = 0;
 
@@ -264,7 +272,7 @@ module tt_um_rv32e_cpu # (
                 endcase
             end
             STATE_MOVE_PROG_COUNTER: begin
-                alu_value1 = {15'd0, prog_counter};
+                alu_value1 = {{32-address_size{1'b0}}, prog_counter};
                 alu_value2 = 32'd4;
 
                 case (opcode)
@@ -368,6 +376,7 @@ module tt_um_rv32e_cpu # (
                         state <= STATE_WRITE_REGISTER;
                         full_reg_write_value <= (opcode == I_TYPE_LOAD_INSTR) ? mem_fetch_value2: alu_result;
                         reg_shift <= 1;
+                        mem_start_request <= 0;
                     end
                 end
 
@@ -397,5 +406,130 @@ module tt_um_rv32e_cpu # (
             endcase
         end
     end
+
+endmodule
+
+module mem_bus #(
+        parameter address_size = 16 + 2
+    )(
+    input  wire miso,  // Main spi signals
+    output wire sclk,
+    output wire mosi,
+
+    output wire cs1,
+    output wire cs2,
+
+    input wire [2:0] num_bytes,
+
+    input wire [5:0] inputs,
+    output wire [3:0] outputs,
+
+    output wire [4:0] io_direction,
+    output wire [4:0] io_outputs,
+    input wire [4:0] io_inputs,
+
+    // Limit to 3 address bytes, and 1 extra byte for whether it is
+    // flash or RAM access.
+    input  wire [address_size-1:0] target_address,
+    output wire [31:0] fetched_value,
+
+    input wire is_write,
+    input wire [31:0] write_value,
+
+    input wire start_request,
+    output wire request_done,
+
+    input wire clk,
+    input wire rst_n
+);
+
+    wire is_mem = ~target_address[address_size-1];
+
+    reg io_request_done;
+    reg [7:0] io_value;
+
+    // If the MSB is 0, then select the SPI flash/ram
+    wire mem_start_request = start_request & is_mem;
+    wire mem_request_done;
+
+    wire [31:0] mem_fetched_value;
+
+    assign request_done = is_mem ? mem_request_done : io_request_done;
+    assign fetched_value = is_mem ? mem_fetched_value : {24'd0, io_value};
+
+    mem_external #(.address_size(address_size)) mem1(
+        .miso(miso),
+        .sclk(sclk),
+        .mosi(mosi),
+
+        .cs1(cs1),
+        .cs2(cs2),
+
+        .num_bytes(num_bytes),
+        .target_address(target_address),
+        .fetched_value (mem_fetched_value),
+
+        .is_write(is_write),
+        .write_value(write_value),
+
+        .start_request(mem_start_request),
+        .request_done(mem_request_done),
+
+        .clk(clk)
+    );
+
+    reg [3:0] outputs_bits;     // output only pins
+    reg [5:0] input_bits;       // input only pins
+
+    reg [4:0] io_direction_bits;    // io pins direction
+    reg [4:0] io_inputs_bits;       // io pins input value
+    reg [4:0] io_outputs_bits;      // io pins output value
+
+    always @ (posedge clk) begin
+        if (~rst_n) begin
+            outputs_bits <= 0;
+            io_request_done <= 0;
+            input_bits <= 0;
+
+            io_inputs_bits <= 0;
+            io_outputs_bits <= 0;
+            io_direction_bits <= 0;
+
+        end else begin
+            if (start_request) begin
+                if (~io_request_done) begin
+
+                    if (is_write) begin
+                        case (target_address[7:0])
+                            0: outputs_bits <= write_value[3:0];
+                            2: io_direction_bits <= write_value[4:0];
+                            4: io_outputs_bits <= write_value[4:0];
+                            default: ;
+                        endcase
+                    end else begin
+                        case (target_address[7:0])
+                            0: io_value <= {4'd0, outputs_bits};
+                            1: io_value <= {2'd0, input_bits};
+                            2: io_value <= {3'd0, io_direction_bits};
+                            3: io_value <= {3'd0, io_inputs_bits};
+                            4: io_value <= {3'd0, io_outputs_bits};
+                            default: ;
+                        endcase
+                    end
+                    io_request_done <= 1;
+                end
+            end else begin
+                io_request_done <= 0;
+            end
+
+            // always update the input bits
+            input_bits <= inputs;
+            io_inputs_bits <= ~io_direction_bits & io_inputs;
+        end
+    end
+
+    assign outputs = outputs_bits;
+    assign io_direction = io_direction_bits;
+    assign io_outputs = io_outputs_bits;
 
 endmodule

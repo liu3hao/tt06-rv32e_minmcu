@@ -13,7 +13,7 @@ localparam SPI_RX_BUFFER_SIZE = 32;
 localparam SPI_CMD_BITS = 8'd32; //1 byte for code, 3 for address bytes
 
 module mem_external # (
-    parameter address_size = 17
+    parameter address_size = 16+2
     ) (
     input  wire miso,  // Main spi signals
     output wire sclk,
@@ -89,7 +89,7 @@ module mem_external # (
                     // for little-endian
                     spi_tx_buffer <= {
                         7'b0000001, ~is_write,
-                        8'd0, target_address[address_size-2:0],
+                        8'd0, target_address[address_size-3:0],
                         write_value_swapped
                     };
 
@@ -118,8 +118,8 @@ module mem_external # (
 
     // Depending on the target address range, select the CS pin.
     // Enable CS pins only if in transaction
-    assign cs1 = ~(~target_address[address_size-1] & in_transaction); // Flash chip
-    assign cs2 = ~(target_address[address_size-1] & in_transaction);  // RAM chip
+    assign cs1 = ~(~target_address[address_size-2] & in_transaction); // Flash chip
+    assign cs2 = ~(target_address[address_size-2] & in_transaction);  // RAM chip
 
     assign request_done = (start_request == 1 & state == STATE_TRANSACTION_DONE);
     assign fetched_value = spi_rx_buffer;

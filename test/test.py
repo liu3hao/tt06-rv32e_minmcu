@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: MIT
 
 import cocotb
-from helpers import get_register, load_binary, assert_registers_zero, run_program
+from cocotb.triggers import RisingEdge
+
+from helpers import get_output_pin, get_register, load_binary, assert_registers_zero, run_program
 
 @cocotb.test()
 async def test_addi_add_shift_reg_check(dut):
@@ -650,6 +652,149 @@ async def test_bltu(dut):
     assert get_register(dut, 4).value == 0
     assert get_register(dut, 5).value == 30
     assert_registers_zero(dut, 6)
+
+@cocotb.test()
+async def test_output_write_read_single(dut):
+    # lw x1, 32(x0)
+    # addi x2, x2, 5
+    # sb x2, 0(x1)
+    # lb x3, 0(x1)
+        
+    ram_chip, flash = await run_program(dut, '''
+        02002083
+        00510113
+        00208023
+        00008183
+        0000006f
+        0
+        0
+        0
+        00020000
+        ''')
+
+    assert get_register(dut, 1).value == 0x20000
+    assert get_register(dut, 2).value == 5
+    assert get_register(dut, 3).value == 5
+    assert_registers_zero(dut, 4)
+
+    assert get_output_pin(dut, 0).value == 1
+    assert get_output_pin(dut, 1).value == 0
+    assert get_output_pin(dut, 2).value == 1
+    assert get_output_pin(dut, 3).value == 0
+
+@cocotb.test()
+async def test_output_write_over(dut):
+    # lw x1, 32(x0)
+    # addi x2, x2, 10
+    # sb x2, 0(x1)
+    # lb x4, 0(x1)
+    # addi x3, x3, 9
+    # sb x3, 0(x1)
+        
+    ram_chip, flash = await run_program(dut, '''
+        02002083
+        00A10113
+        00208023
+        00008203
+        00918193
+        00308023
+        0000006f
+        0
+        00020000
+        ''')
+
+    assert get_register(dut, 1).value == 0x20000
+    assert get_register(dut, 2).value == 10
+    assert get_register(dut, 3).value == 9
+    assert get_register(dut, 4).value == 10
+    assert_registers_zero(dut, 5)
+
+    assert get_output_pin(dut, 0).value == 1
+    assert get_output_pin(dut, 1).value == 0
+    assert get_output_pin(dut, 2).value == 0
+    assert get_output_pin(dut, 3).value == 1
+
+@cocotb.test()
+async def test_read_input_pins(dut):
+    # lw x1, 32(x0)
+    # lb x2, 1(x1)
+    # addi x3, x3, 1
+    # sb x3, 0(x1)
+    # lb x4, 1(x1)
+
+    dut.ui_in.value = 0
+
+    async def connect_pins():
+        # when there is a high detected on this pin, then set input pins
+        await RisingEdge(dut.out0)
+        dut.ui_in[0].value = 1
+        dut.ui_in[6].value = 1
+
+    ram_chip, flash = await run_program(dut, '''
+        02002083
+        00108103
+        00118193
+        00308023
+        00108203
+        0000006f
+        0
+        0
+        00020000
+        ''', extra_func=connect_pins)
+    
+    assert get_register(dut, 1).value == 0x20000
+    assert get_register(dut, 2).value == 0
+    assert get_register(dut, 3).value == 1
+    assert get_register(dut, 4).value == 33
+    assert_registers_zero(dut, 5)
+
+@cocotb.test()
+async def test_io_pins(dut):
+    # lw x1, 32(x0)
+    # addi x2, x2, 24
+    # lb x3, 3(x1)
+    # sb x2, 2(x1)
+    # addi x2, x0, 18
+    # sb x2, 4(x1)
+    # sb x4, 3(x1)
+
+    dut.uio_in[3].value = 1
+    dut.uio_in[4].value = 0
+    dut.uio_in[5].value = 0
+    dut.uio_in[6].value = 1
+    dut.uio_in[7].value = 1
+
+    async def connect_pins():
+        # when there is a high detected on this pin, then set input pins
+        await RisingEdge(dut.io4)
+
+        # set the inputs, however, since the io bits are still outputs
+        # so there should be no change
+        dut.uio_in[3].value = 0
+        dut.uio_in[4].value = 1
+        dut.uio_in[6].value = 0
+        pass
+
+    ram_chip, flash = await run_program(dut, '''
+0x00000000	|	0x02002083	|	lw x1, 32(x0)
+ 0x00000004	|	0x01800113	|	addi x2, x0, 24
+ 0x00000008	|	0x00308183	|	lb x3, 3(x1)
+ 0x0000000C	|	0x00208123	|	sb x2, 2(x1)
+ 0x00000010	|	0x01200113	|	addi x2, x0, 18
+ 0x00000014	|	0x00208223	|	sb x2, 4(x1)
+ 0x00000018	|	0x00308203	|	lb x4, 3(x1)
+        0000006f
+        00020000
+        ''', extra_func=connect_pins)
+    
+    assert get_register(dut, 1).value == 0x20000
+    assert get_register(dut, 2).value == 18
+    assert get_register(dut, 3).value == 0x19
+    assert get_register(dut, 4).value == 2
+    assert assert_registers_zero(dut, 5)
+
+    assert dut.uio_out[7].value == 1
+    assert dut.uio_out[4].value == 1
 
 @cocotb.test()
 async def test_script1(dut):

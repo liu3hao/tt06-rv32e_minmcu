@@ -23,6 +23,8 @@ class SpiFlashPeripheral(SpiSlaveBase):
         self.name = name
         self.dut = dut
 
+        self.show_debug_logs = False
+
         super().__init__(bus)
 
     def get_value(self, address, num_bytes):
@@ -49,14 +51,14 @@ class SpiFlashPeripheral(SpiSlaveBase):
 
         # wait for first byte
         first_byte = await self.shift2(8)
-        # self.debugLog("got %d" % first_byte)
+        self.debugLog("got %d" % first_byte)
 
         if first_byte == 0x03:
-            # self.debugLog('starting read operation: %s' % self.name)
+            self.debugLog('starting read operation: %s' % self.name)
             
             # Read address, next 3 bytes are read address
             address = await self.shift2(24)
-            # self.debugLog('read address %d' % address)
+            self.debugLog('read address %d' % address)
 
             while True:
                 try:
@@ -66,19 +68,19 @@ class SpiFlashPeripheral(SpiSlaveBase):
 
                 try:
                     await self.shift2(8, memory_value)
-                    # self.debugLog("shifted out value: %d %s" % (memory_value, bin(memory_value)))
+                    self.debugLog("shifted out value: %d %s" % (memory_value, bin(memory_value)))
                     address += 1
                 except Exception as e:
-                    # self.debugLog("nothing to shift: %s" % e)
+                    self.debugLog("nothing to shift: %s" % e)
                     break
 
         elif first_byte == 0x02:
-            # self.debugLog('starting write operation: %s' % self.name)
+            self.debugLog('starting write operation: %s' % self.name)
 
             # Write operation, next 3 bytes are starting address
             address = await self.shift2(24)
 
-            # self.debugLog('write to address: %d' % address)
+            self.debugLog('write to address: %d' % address)
 
             while True:
                 if (await First(RisingEdge(self._sclk), frame_end)) != frame_end:
@@ -111,7 +113,8 @@ class SpiFlashPeripheral(SpiSlaveBase):
 
 
     def debugLog(self, message):
-        self.dut._log.info(message)
+        if self.show_debug_logs:
+            self.dut._log.info(message)
 
 
 def prepare_bytes(memory_array):
@@ -158,7 +161,7 @@ def load_binary(path):
         output.append(b)
     return output
 
-async def run_program(dut, raw='', memory=None, wait_cycles=100):
+async def run_program(dut, raw='', memory=None, wait_cycles=100, extra_func=None):
     # dut._log.info("Run program")
 
     if raw != '':
@@ -167,6 +170,8 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100):
         lines = [line.strip() for line in lines]
         for line in lines:
             if line != '':
+                if '|' in line:
+                    line = line.split('|')[1].strip()[2:]
                 memory.append(int(line, 16))
 
         bytes_array = prepare_bytes(memory)
@@ -199,6 +204,9 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100):
 
     await ClockCycles(dut.clk, 20)
     dut.rst_n.value = 1
+
+    if extra_func:
+        await extra_func()
 
     stop_signal = await First(halted_signal, timeout)
 
@@ -237,3 +245,28 @@ class ValueWrapper:
     def __init__(self, value) -> None:
         self.raw_value = value
         self.value = BinaryValue(value)
+
+def get_output_pin(dut, index):
+    if index == 0:
+        return dut.uo_out[1]
+    elif index == 1:
+        return dut.uo_out[2]
+    elif index == 2:
+        return dut.uo_out[6]
+    elif index == 3:
+        return dut.uo_out[7]
+    return None
+
+def set_input_pin(dut, index, value):
+    if index == 0:
+        dut.ui_in[0].value = value
+    elif index == 1:
+        dut.ui_in[1].value = value
+    elif index == 2:
+        dut.ui_in[3].value = value
+    elif index == 3:
+        dut.ui_in[4].value = value
+    elif index == 4:
+        dut.ui_in[5].value = value
+    elif index== 5:
+        dut.ui_in[6].value = value
