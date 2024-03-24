@@ -12,9 +12,9 @@ module tb ();
         $dumpfile("tb.vcd");
         $dumpvars(0, tb);
 
-        // for (i = 0; i < 16; i = i + 1) begin
-        //     $dumpvars(0, cpu1.reg1.registers[i]);
-        // end
+        for (i = 0; i < 16; i = i + 1) begin
+            $dumpvars(0, cpu1.reg1.registers[i]);
+        end
         #1;
     end
 
@@ -29,14 +29,14 @@ module tb ();
     wire [7:0] uio_out;
     wire [7:0] uio_oe;
 
-    wire sclk = uo_out[0];
-    wire mosi = uo_out[1];
-    wire cs1 = uo_out[2];
-    wire cs2 = uo_out[3];
+    wire sclk = uo_out[5];
+    wire mosi = uo_out[3];
+    wire cs1 = uo_out[4];
+    wire cs2 = uio_out[0];
 
     reg miso;
     always_comb begin
-        ui_in[0] = miso;
+        ui_in[2] = miso;
     end
 
     // Replace tt_um_example with your module name:

@@ -175,8 +175,8 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100):
 
     ram_bytes = {}
 
-    flash_chip = SpiFlashPeripheral(SpiBus.from_entity(dut, 
     # Flash memory
+    flash_chip = SpiFlashPeripheral(SpiBus.from_entity(dut,
                                                  cs_name='cs1'), bytes_array, 
                                                  dut, name='flash')  
     
@@ -212,19 +212,20 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100):
 def get_register(dut, index):
 
     gate_level_tests = False
+    main_cpu = dut.cpu1
 
     if gate_level_tests:
         # gate level tests
         value = 0
         for i in range(0, 32):
-            bit = dut.cpu1._id('\\reg1.registers[%d][%d]' % (index, i), extended = False)
+            bit = main_cpu._id('\\reg1.registers[%d][%d]' % (index, i), extended = False)
             value = (int(bit) << i) | value
         return ValueWrapper(value)
     else:
         if False:
-            return dut.cpu1.reg1._id('r%d' % index, extended=False)
+            return main_cpu.reg1._id('r%d' % index, extended=False)
         else:
-            return dut.cpu1.reg1._id('registers[%d]' % index, extended=False)
+            return main_cpu.reg1._id('registers[%d]' % index, extended=False)
     
 def assert_registers_zero(dut, start_from, until=15):
     for i in range(start_from, until+1):

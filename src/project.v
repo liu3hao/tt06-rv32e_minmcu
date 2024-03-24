@@ -15,12 +15,6 @@ localparam B_TYPE_INSTR =       7'h63;
 localparam I_TYPE_JUMP_INSTR =  7'h67;  // JALR
 localparam J_TYPE_INSTR =       7'h6F;  // JAL
 
-localparam INSTR_F3_0 =     5'b00001;
-localparam INSTR_F3_1 =     5'b00010;
-localparam INSTR_F3_2 =     5'b00100;
-localparam INSTR_F3_4 =     5'b01000;
-localparam INSTR_F3_5 =     5'b10000;
-
 module tt_um_rv32e_cpu # (
         parameter address_size = 16+1
     )(
@@ -37,9 +31,10 @@ module tt_um_rv32e_cpu # (
 );
 
     // Not used yet.
-    assign uio_oe = 0;
-    assign uio_out = 0;
-    assign uo_out[7:4] = 0;
+    assign uio_oe = 8'b00000001;
+    assign uio_out[7:1] = 0;
+    assign uo_out[2:0] = 0;
+    assign uo_out[7:6] = 0;
 
     localparam STATE_FETCH_INSTRUCTION =    5'b00001;
     localparam STATE_READ_REGISTERS    =    5'b00010;
@@ -64,8 +59,7 @@ module tt_um_rv32e_cpu # (
     reg halted;
 
     reg reg_shift;                      // If 1, then register file will shift
-    reg [4:0] reg_counter;              // Count up to 32 for shifting into register file
-    reg reg_write_value;                // Holds current bit to store in registers
+    reg [3:0] reg_counter;              // Count up to 15 for shifting into register file
     reg [31:0] full_reg_write_value;    // Holds full word to be stored in registers
 
     wire [2:0] mem_num_bytes = (state == STATE_FETCH_INSTRUCTION) ? 3'd4
@@ -74,14 +68,14 @@ module tt_um_rv32e_cpu # (
                             : (instr_func3 == 3'd1 || instr_func3 == 3'd5) ? 3'd2
                             : 3'd0;
 
-    mem_external #(.address_size(address_size)) mem_external1 (
-        .sclk(uo_out[0]),
-        .mosi(uo_out[1]),
+    mem_external #(.address_size(address_size)) mem_external1(
+        .sclk(uo_out[5]),
+        .mosi(uo_out[3]),
 
-        .cs1(uo_out[2]),
-        .cs2(uo_out[3]),
+        .cs1(uo_out[4]),
+        .cs2(uio_out[0]),
 
-        .miso(ui_in[0]),
+        .miso(ui_in[2]),
 
         .num_bytes(mem_num_bytes),
 
@@ -201,7 +195,8 @@ module tt_um_rv32e_cpu # (
     reg [31:0] alu_value2;
     reg [2:0] alu_func_type;
     reg alu_f7_bit;
-    reg alu_result_lsb;     // Store the LSB, so that it can be used later.
+
+    wire alu_result_lsb = full_reg_write_value[0]; // Store ALU result lsb
 
     alu alu1 (
         .value1(alu_value1),
@@ -350,14 +345,14 @@ module tt_um_rv32e_cpu # (
                 STATE_READ_REGISTERS: begin
                     if (reg_shift == 1) begin
                         // Read out registers first before reading alu results
-                        rs1 <= (rs1 << 2) | {30'd0, rs1_bit};
-                        rs2 <= (rs2 << 2) | {30'd0, rs2_bit};
+                        rs1 <= (rs1 >> 2) | {rs1_bit, 30'd0};
+                        rs2 <= (rs2 >> 2) | {rs2_bit, 30'd0};
                         reg_counter <= reg_counter + 1;
                     end else begin
                         reg_shift <= 1;
                     end
 
-                    if (reg_counter == 5'd15) begin
+                    if (reg_counter == 4'd15) begin
                         reg_counter <= 0;
                         reg_shift <= 0;
                         state <= STATE_PARSE_INSTRUCTION;
@@ -371,17 +366,17 @@ module tt_um_rv32e_cpu # (
                     end else begin
                         // If not a load/store instruction, or if mem request is done, then move on.
                         state <= STATE_WRITE_REGISTER;
-                        alu_result_lsb <= alu_result[0];
                         full_reg_write_value <= (opcode == I_TYPE_LOAD_INSTR) ? mem_fetch_value2: alu_result;
                         reg_shift <= 1;
                     end
                 end
 
                 STATE_WRITE_REGISTER: begin
-                    full_reg_write_value <= (full_reg_write_value << 2) | {30'd0, full_reg_write_value[31:30]};
+                    full_reg_write_value <= (full_reg_write_value >> 2) | {full_reg_write_value[1:0], 30'd0};
+
                     reg_counter <= reg_counter + 1;
 
-                     if (reg_counter == 5'd15) begin
+                     if (reg_counter == 4'd15) begin
                         state <= STATE_MOVE_PROG_COUNTER;
                         reg_shift <= 0;
                     end

@@ -296,10 +296,10 @@ async def test_store_sw(dut):
         0000006f
         0
         0
-        01000000
+        00010000
         ''')
 
-    assert get_register(dut, 1).value == 0x01000000
+    assert get_register(dut, 1).value == 0x10000
     assert get_register(dut, 2).value == 1234
     assert get_register(dut, 8).value == 10 # Make sure this is not changed
     assert ram_chip.get_value(0, 4) == 1234
@@ -323,10 +323,10 @@ async def test_store_sb(dut):
         0
         0
         0
-        01000000
+        00010000
         ''')
 
-    assert get_register(dut, 1).value == 0x01000000
+    assert get_register(dut, 1).value == 0x10000
     assert get_register(dut, 2).value == 1234
     assert ram_chip.get_value(0, 1) == 0xD2
     assert ram_chip.get_value(8, 1) == 0xD2
@@ -348,10 +348,10 @@ async def test_store_sh(dut):
         0
         0
         0
-        01000000
+        00010000
         ''')
 
-    assert get_register(dut, 1).value == 0x01000000
+    assert get_register(dut, 1).value == 0x10000
     assert get_register(dut, 2).value == 1234
     assert ram_chip.get_value(0, 2) == 0x4D2
     assert ram_chip.get_value(8, 2) == 0x4D2
@@ -374,12 +374,12 @@ async def test_store_and_load(dut):
         0000a183
         00008203
         0000006f
-        01000000
+        00010000
         0
         0
         ''')
 
-    assert get_register(dut, 1).value == 0x01000000
+    assert get_register(dut, 1).value == 0x10000
     assert get_register(dut, 2).value == 1234
     assert get_register(dut, 3).value == 1234
     assert (get_register(dut, 4).value) & 0xff == 0xd2
