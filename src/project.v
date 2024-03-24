@@ -21,7 +21,9 @@ localparam INSTR_F3_2 =     5'b00100;
 localparam INSTR_F3_4 =     5'b01000;
 localparam INSTR_F3_5 =     5'b10000;
 
-module tt_um_rv32e_cpu (
+module tt_um_rv32e_cpu # (
+        parameter address_size = 16+1
+    )(
     input  wire [7:0] ui_in,    // Dedicated inputs
     output wire [7:0] uo_out,   // Dedicated outputs
 
@@ -49,7 +51,7 @@ module tt_um_rv32e_cpu (
 
     // 3 byte program counter, because the instruction address
     // is only 3-bytes long, add 1 extra bit for flash/RAM chip access.
-    reg [24:0] prog_counter;
+    reg [address_size-1:0] prog_counter;
 
     reg [31:0] mem_fetched_value;
 
@@ -72,7 +74,7 @@ module tt_um_rv32e_cpu (
                             : (instr_func3 == 3'd1 || instr_func3 == 3'd5) ? 3'd2
                             : 3'd0;
 
-    mem_external mem_external1 (
+    mem_external #(.address_size(address_size)) mem_external1 (
         .sclk(uo_out[0]),
         .mosi(uo_out[1]),
 
@@ -90,7 +92,7 @@ module tt_um_rv32e_cpu (
 
         .target_address(
             // Memory space is limited to 3 bytes and 1 extra bit.
-            alu_result[24:0]
+            alu_result[address_size-1:0]
         ),
 
         .fetched_value(mem_fetched_value),
@@ -215,14 +217,14 @@ module tt_um_rv32e_cpu (
 
         case (state)
             STATE_FETCH_INSTRUCTION: begin
-                alu_value1 = {7'd0, prog_counter};
+                alu_value1 = {15'd0, prog_counter};
                 alu_value2 = 0;
             end
             STATE_PARSE_INSTRUCTION: begin
 
                 case (opcode)
                     U_TYPE_AUIPC_INSTR, J_TYPE_INSTR, I_TYPE_JUMP_INSTR: begin
-                        alu_value1 = {7'd0, prog_counter};
+                        alu_value1 = {15'd0, prog_counter};
                     end
                     U_TYPE_LUI_INSTR:   alu_value1 = 0;
 
@@ -267,7 +269,7 @@ module tt_um_rv32e_cpu (
                 endcase
             end
             STATE_MOVE_PROG_COUNTER: begin
-                alu_value1 = {7'd0, prog_counter};
+                alu_value1 = {15'd0, prog_counter};
                 alu_value2 = 32'd4;
 
                 case (opcode)
@@ -386,7 +388,7 @@ module tt_um_rv32e_cpu (
                 end
 
                 STATE_MOVE_PROG_COUNTER: begin
-                    prog_counter <= alu_result[24:0];
+                    prog_counter <= alu_result[address_size-1:0];
                     state <= STATE_FETCH_INSTRUCTION;
                     mem_start_request <= 0; // Prepare to fetch next instruction
 
