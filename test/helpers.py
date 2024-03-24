@@ -1,6 +1,6 @@
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import ClockCycles, RisingEdge, FallingEdge
+from cocotb.triggers import ClockCycles, RisingEdge, FallingEdge, Timer
 from cocotb.binary import BinaryValue
 
 from cocotbext.spi import SpiBus
@@ -188,6 +188,10 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100):
     clock = Clock(dut.clk, 20, units="ns")
     cocotb.start_soon(clock.start())
 
+    # Timeout to ensure test does not run too long and generate a very large vcd
+    timeout = Timer(1000, 'us')
+    halted_signal = RisingEdge(dut.cpu1.halted)
+
     # Reset
     # dut._log.info("Reset")
     dut.ena.value = 1
@@ -196,8 +200,10 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100):
     await ClockCycles(dut.clk, 20)
     dut.rst_n.value = 1
 
-    await RisingEdge(dut.cpu1.halted)
-    # dut._log.info('CPU halted')
+    stop_signal = await First(halted_signal, timeout)
+
+    # If stop signal was not halted signal, then the test timed out!
+    assert stop_signal == halted_signal
 
     await ClockCycles(dut.clk, wait_cycles)
 
