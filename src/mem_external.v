@@ -120,12 +120,6 @@ module mem_external (
     assign cs2 = ~(target_address[24] & in_transaction);  // RAM chip
 
     assign request_done = (start_request == 1 & state == STATE_TRANSACTION_DONE);
-
-    // SPI data is lowest byte address first (little-endian), so need to
-    // transform the bytes
-    assign fetched_value = (spi_rx_buffer << 24)
-                            | ((spi_rx_buffer << 8) & 32'h00ff0000)
-                            | ((spi_rx_buffer >> 8) & 32'h0000ff00)
-                            | ((spi_rx_buffer >> 24));
+    assign fetched_value = spi_rx_buffer;
 
 endmodule

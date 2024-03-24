@@ -56,7 +56,7 @@ module tt_um_rv32e_cpu (
     wire mem_request_done;
     reg mem_start_request;
 
-    reg [31:0] current_instruction;
+    reg [31:0] current_instruction; // Stores curent instruction fetched from mem in lsb order
 
     // If high, then the CPU has stopped parsing further instructions
     reg halted;
@@ -101,33 +101,21 @@ module tt_um_rv32e_cpu (
         .clk(clk)
     );
 
-    reg [4:0] instr_func3_1hot;
     reg [31:0] mem_fetch_value2;
 
     always_comb begin
-        // Convert to 1-hot encoding
         case (instr_func3)
-            0:       instr_func3_1hot = INSTR_F3_0;
-            1:       instr_func3_1hot = INSTR_F3_1;
-            2:       instr_func3_1hot = INSTR_F3_2;
-            4:       instr_func3_1hot = INSTR_F3_4;
-            default: instr_func3_1hot = INSTR_F3_5;
-        endcase
-
-        case (instr_func3_1hot)
-            INSTR_F3_0: mem_fetch_value2 = {{24{mem_fetched_value[31]}}, mem_fetched_value[31:24]};
-            INSTR_F3_1: mem_fetch_value2 = {{16{mem_fetched_value[31]}}, mem_fetched_value[31:16]};
-            INSTR_F3_2: mem_fetch_value2 = mem_fetched_value;
-            INSTR_F3_4: mem_fetch_value2 = {24'd0, mem_fetched_value[31:24]};
-            default:    mem_fetch_value2 = {16'd0, mem_fetched_value[31:16]};
+            0: mem_fetch_value2 = {{24{mem_fetched_value[7]}}, mem_fetched_value[7:0]};
+            1: mem_fetch_value2 = {{16{mem_fetched_value[7]}}, mem_fetched_value[7:0], mem_fetched_value[15:8]};
+            2: mem_fetch_value2 = {mem_fetched_value[7:0], mem_fetched_value[15:8], mem_fetched_value[23:16], mem_fetched_value[31:24]};
+            4: mem_fetch_value2 = {24'd0, mem_fetched_value[7:0]};
+            default:    mem_fetch_value2 = {16'd0, mem_fetched_value[7:0], mem_fetched_value[15:8]};
         endcase
     end
 
     registers reg1 (
         .write_register(instr_rd),
         .write_value(full_reg_write_value[1:0]),
-            // (opcode == I_TYPE_LOAD_INSTR) ? mem_fetch_value2
-            // : alu_result
 
         .r_sel1(instr_rs1),
         .r_value1(rs1_bit),
@@ -171,29 +159,39 @@ module tt_um_rv32e_cpu (
     wire [19:0] msb_sign_extend;
 
     // rv32e only has 16 regs, so can ignore the last reg bit
-    assign opcode =        current_instruction[6:0];
-    assign instr_rd =      current_instruction[10:7];
-    assign instr_func3 =   current_instruction[14:12];
-    assign instr_rs1 =     current_instruction[18:15];
-    assign instr_rs2 =     current_instruction[23:20];
-    assign instr_func7 =   current_instruction[31:25];
+    assign opcode =        current_instruction[30:24];
+    assign instr_rd =      {current_instruction[18:16], current_instruction[31]};
+    assign instr_func3 =   current_instruction[22:20];
+    assign instr_rs1 =     {current_instruction[10:8], current_instruction[23]};
+    assign instr_rs2 =     current_instruction[15:12];
+    assign instr_func7 =   current_instruction[7:1];
 
-    assign i_type_imm =    current_instruction[31:20];
+    assign i_type_imm =    {current_instruction[7:0], current_instruction[15:12]};
 
-    assign msb_sign_extend = {20{current_instruction[31]}};
+    assign msb_sign_extend = {20{current_instruction[7]}};
 
     assign i_type_imm_sign_extended = { msb_sign_extend, i_type_imm};
 
     // assign s_type_imm1 =   current_instruction[31:25]; // same as instr_func7
-    assign s_type_imm2 =   current_instruction[11:7];
+    assign s_type_imm2 =   {current_instruction[19:16], current_instruction[31]};
     assign s_type_imm_sign_extended = { msb_sign_extend, instr_func7, s_type_imm2};
 
     assign j_type_imm_sign_extended = { msb_sign_extend[11:0],
-            current_instruction[19:12], current_instruction[20], current_instruction[30:21], 1'b0};
+            current_instruction[11:8],
+            current_instruction[23:20],
+            current_instruction[12],
+            current_instruction[6:0],
+            current_instruction[15:13],
+            1'b0};
 
-    assign u_type_imm = {current_instruction[31:12], 12'b0};
-    assign b_type_imm = {msb_sign_extend, current_instruction[7],
-                        current_instruction[30:25], current_instruction[11:8], 1'b0};
+    assign u_type_imm = {current_instruction[7:0],
+                         current_instruction[15:8],
+                         current_instruction[23:20],
+                         12'b0};
+    assign b_type_imm = {msb_sign_extend,
+                         current_instruction[31],
+                         current_instruction[6:1],
+                         current_instruction[19:16], 1'b0};
 
     wire [31:0] alu_result;
 
