@@ -14,8 +14,11 @@ TOPLEVEL_LANG ?= verilog
 SRC_DIR = $(PWD)/../src
 PROJECT_SOURCES = project.v
 PROJECT_SOURCES += mem_external.v
+PROJECT_SOURCES += mem_bus.v
 PROJECT_SOURCES += registers.v
 PROJECT_SOURCES += alu.v
+
+PDK_ROOT = $(OPENLANE_PDK_ROOT)
 
 ifneq ($(GATES),yes)
 
@@ -53,3 +56,6 @@ include $(shell cocotb-config --makefiles)/Makefile.sim
 
 gtk:
 	open tb.vcd -a gtkwave
+
+prep:
+	cp $(PWD)/../runs/wokwi/results/final/verilog/gl/tt_um_rv32e_cpu.v gate_level_netlist.v

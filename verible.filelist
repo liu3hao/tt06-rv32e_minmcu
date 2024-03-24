@@ -1,5 +1,5 @@
 src/project.v
-src/mem_controller.v
 src/mem_external.v
+src/mem_bus.v
 src/registers.v
 src/alu.v
