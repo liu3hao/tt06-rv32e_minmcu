@@ -24,6 +24,7 @@ class SpiFlashPeripheral(SpiSlaveBase):
         self.dut = dut
 
         self.show_debug_logs = False
+        self.custom_func = None
 
         super().__init__(bus)
 
@@ -99,6 +100,10 @@ class SpiFlashPeripheral(SpiSlaveBase):
                     
                 else:
                     break
+
+        elif self.custom_func is not None:
+            await self.custom_func(first_byte)
+
         else:
             await frame_end
 

@@ -3,8 +3,9 @@
 
 import cocotb
 from cocotb.triggers import RisingEdge, FallingEdge, First, ClockCycles
+from cocotbext.spi import SpiBus
 
-from helpers import get_halt_signal, get_io_output_pin, get_output_pin, get_register, load_binary, assert_registers_zero, run_program, set_input_pin
+from helpers import SpiFlashPeripheral, get_halt_signal, get_io_output_pin, get_output_pin, get_register, load_binary, assert_registers_zero, run_program, set_input_pin
 
 @cocotb.test()
 async def test_addi_add_shift_reg_check(dut):
@@ -798,6 +799,39 @@ async def test_io_pins(dut):
     assert get_io_output_pin(dut, 2) == 0
     assert get_io_output_pin(dut, 3) == 0
     assert get_io_output_pin(dut, 4) == 1
+
+@cocotb.test()
+async def test_spi_peripherals(dut):
+
+    async def add_spi_device():
+        tmp_spi = SpiFlashPeripheral(SpiBus.from_entity(dut,
+                                                 cs_name='out0'), {}, 
+                                                 dut, name='tmp_spi1')
+
+        async def tmp(first_byte):
+            # return the byte + 1
+            await tmp_spi.shift2(8, first_byte + 1)
+
+        tmp_spi.custom_func = tmp
+
+    ram_chip, flash = await run_program(dut, '''
+ 0x00000000	|	0x02402083	|	lw x1, 36(x0)
+ 0x00000004	|	0x01500113	|	addi x2, x0, 21
+ 0x00000008	|	0x00300193	|	addi x3, x0, 3
+ 0x0000000C	|	0x002083A3	|	sb x2, 7(x1)
+ 0x00000010	|	0x000082A3	|	sb x0, 5(x1)
+ 0x00000014	|	0x003082A3	|	sb x3, 5(x1)
+ 0x00000018	|	0x000082A3	|	sb x0, 5(x1)
+ 0x0000001C	|	0x00808203	|	lb x4, 8(x1)
+        0000006f
+        00020000
+        ''', extra_func=add_spi_device)
+    
+    assert get_register(dut, 1).value == 0x20000
+    assert get_register(dut, 2).value == 21
+    assert get_register(dut, 3).value == 3
+    assert get_register(dut, 4).value == 22
+    assert assert_registers_zero(dut, 5)
 
 @cocotb.test()
 async def test_program1(dut):

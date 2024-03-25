@@ -19,10 +19,12 @@ module mem_external # (
     output wire sclk,
     output wire mosi,
 
-    output wire cs1,
-    output wire cs2,
+    output wire in_transaction,
 
     input wire [2:0] num_bytes,
+
+    input wire is_peripheral,
+    input wire [7:0] peripheral_tx_bytes,
 
     // Limit to 3 address bytes, and 1 extra byte for whether it is
     // flash or RAM access.
@@ -54,11 +56,15 @@ module mem_external # (
     reg [31:0] write_value_swapped;
 
     always_comb begin
-        case (num_bytes)
-            1:       counter_end = SPI_CMD_BITS + 8;
-            2:       counter_end = SPI_CMD_BITS + 16;
-            default: counter_end = SPI_CMD_BITS + 32;  // 4 bytes
-        endcase
+        if (is_peripheral) begin
+            counter_end = 16; // 8 for tx byte and 8 for rx byte
+        end else begin
+            case (num_bytes)
+                1:       counter_end = SPI_CMD_BITS + 8;
+                2:       counter_end = SPI_CMD_BITS + 16;
+                default: counter_end = SPI_CMD_BITS + 32;  // 4 bytes
+            endcase
+        end
 
         // num_bytes does not matter here, since the spi clk counter will stop
         // further bytes from being sent.
@@ -84,14 +90,20 @@ module mem_external # (
                     // Use 3 byte address mode for now
                     state <= STATE_RUN_TRANSACTION;
 
-                    // Prepare the tx buffer, the MSB is transmitted first
-                    // If write_value is specified, then it needs to be transformed
-                    // for little-endian
-                    spi_tx_buffer <= {
-                        7'b0000001, ~is_write,
-                        8'd0, target_address[address_size-3:0],
-                        write_value_swapped
-                    };
+                    if (is_peripheral) begin
+                        spi_tx_buffer <= {
+                            peripheral_tx_bytes, 56'd0
+                        };
+                    end else begin
+                        // Prepare the tx buffer, the MSB is transmitted first
+                        // If write_value is specified, then it needs to be transformed
+                        // for little-endian
+                        spi_tx_buffer <= {
+                            7'b0000001, ~is_write,
+                            8'd0, target_address[address_size-3:0],
+                            write_value_swapped
+                        };
+                    end
 
                     spi_clk_counter <= 1; // Increase by 1, so that comparison for
                                           // limit later does not need +1
@@ -110,16 +122,11 @@ module mem_external # (
         end
     end
 
-    wire in_transaction = (state == STATE_RUN_TRANSACTION);
+    assign in_transaction = (state == STATE_RUN_TRANSACTION);
 
     // MSB is transmitted first, need to check if high impedance state is needed
     assign mosi = in_transaction & spi_tx_buffer[SPI_TX_BUFFER_SIZE-1];
     assign sclk = in_transaction & clk;
-
-    // Depending on the target address range, select the CS pin.
-    // Enable CS pins only if in transaction
-    assign cs1 = ~(~target_address[address_size-2] & in_transaction); // Flash chip
-    assign cs2 = ~(target_address[address_size-2] & in_transaction);  // RAM chip
 
     assign request_done = (start_request == 1 & state == STATE_TRANSACTION_DONE);
     assign fetched_value = spi_rx_buffer;
