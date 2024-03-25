@@ -93,7 +93,7 @@ module mem_bus #(
                         case (target_address[7:0])
                             0: outputs_bits <= write_value[3:0];
                             2: io_direction_bits <= write_value[4:0];
-                            4: io_outputs_bits <= write_value[4:0];
+                            4: io_outputs_bits <= io_direction_bits & write_value[4:0];
                             default: ;
                         endcase
                     end else begin

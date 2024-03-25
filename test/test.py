@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: MIT
 
 import cocotb
-from cocotb.triggers import RisingEdge
+from cocotb.triggers import RisingEdge, FallingEdge, First, ClockCycles
 
-from helpers import get_output_pin, get_register, load_binary, assert_registers_zero, run_program
+from helpers import get_halt_signal, get_io_output_pin, get_output_pin, get_register, load_binary, assert_registers_zero, run_program, set_input_pin
 
 @cocotb.test()
 async def test_addi_add_shift_reg_check(dut):
@@ -766,7 +766,7 @@ async def test_io_pins(dut):
 
     async def connect_pins():
         # when there is a high detected on this pin, then set input pins
-        await RisingEdge(dut.io4)
+        await RisingEdge(dut.io_out4)
 
         # set the inputs, however, since the io bits are still outputs
         # so there should be no change
@@ -793,19 +793,115 @@ async def test_io_pins(dut):
     assert get_register(dut, 4).value == 2
     assert assert_registers_zero(dut, 5)
 
-    assert dut.uio_out[7].value == 1
-    assert dut.uio_out[4].value == 1
+    assert get_io_output_pin(dut, 0) == 0
+    assert get_io_output_pin(dut, 1) == 0
+    assert get_io_output_pin(dut, 2) == 0
+    assert get_io_output_pin(dut, 3) == 0
+    assert get_io_output_pin(dut, 4) == 1
 
 @cocotb.test()
-async def test_script1(dut):
+async def test_program1(dut):
 
-    bytes = load_binary('binaries/hello2.bin')
+    bytes = load_binary('binaries/prog1.bin')
     ram_chip, flash_chip = await run_program(dut, memory=bytes)
 
     ram_chip.dump_memory2()
 
     # return value of the function
     assert get_register(dut, 10).value == 1024
+
+@cocotb.test()
+async def test_program3(dut):
+    # program sets output pins and reads input pins
+
+    bytes = load_binary('binaries/prog3.bin')
+    dut.ui_in.value = 0     # initialize inputs to some value, other tests fails
+
+    async def detect_edges():
+        halted_signal = RisingEdge(get_halt_signal(dut))
+        out0 = get_output_pin(dut, 0)
+
+        out0_rising = RisingEdge(out0)
+        out0_falling = FallingEdge(out0)
+
+        rising_edges = 0
+        falling_edges = 0
+        
+        while True:
+            tmp_sig = await First(halted_signal, out0_rising, out0_falling)
+            if tmp_sig == out0_rising:
+                rising_edges += 1
+
+                # set some input values
+                set_input_pin(dut, 0, 1)
+                set_input_pin(dut, 1, 0)
+                set_input_pin(dut, 2, 1)
+
+            elif tmp_sig == out0_falling:
+                falling_edges += 1
+            else:
+                break
+
+        assert rising_edges == 5
+        assert falling_edges == 5
+
+    ram_chip, flash_chip = await run_program(dut, memory=bytes, 
+                                             extra_func=detect_edges)
+
+    ram_chip.dump_memory2()
+
+    # return value is the result of the input pins register
+    assert get_register(dut, 10).value == 5
+
+    assert get_output_pin(dut, 0).value == 0
+    assert get_output_pin(dut, 1).value == 0
+    assert get_output_pin(dut, 2).value == 0
+    assert get_output_pin(dut, 3).value == 1
+
+@cocotb.test()
+async def test_program4(dut):
+    # program sets output pins and reads input pins
+
+    bytes = load_binary('binaries/prog4.bin')
+    dut.ui_in.value = 0     # initialize inputs to some value, other tests fails
+    dut.uio_in.value = 0
+
+    async def detect_edges():
+        halted_signal = RisingEdge(get_halt_signal(dut))
+        out0 = get_io_output_pin(dut, 0)
+
+        out0_rising = RisingEdge(out0)
+        out0_falling = FallingEdge(out0)
+
+        tmp_sig = await First(halted_signal, out0_rising, out0_falling)
+        assert tmp_sig == out0_rising
+
+        await ClockCycles(dut.clk, 1)
+
+        assert get_io_output_pin(dut, 0).value == 1
+        assert get_io_output_pin(dut, 1).value == 1
+        assert get_io_output_pin(dut, 2).value == 0
+        assert get_io_output_pin(dut, 3).value == 0
+        assert get_io_output_pin(dut, 4).value == 1
+
+        dut.uio_in.value = 0b10101000
+
+        tmp_sig = await First(halted_signal, out0_rising, out0_falling)
+        assert tmp_sig == out0_falling
+
+    ram_chip, flash_chip = await run_program(dut, memory=bytes, 
+                                             extra_func=detect_edges)
+
+    ram_chip.dump_memory2()
+
+    # return value is the result of the input pins register
+    assert get_register(dut, 10).value == 4
+
+    assert get_io_output_pin(dut, 0).value == 0
+    assert get_io_output_pin(dut, 1).value == 0
+    assert get_io_output_pin(dut, 2).value == 0
+    assert get_io_output_pin(dut, 3).value == 0
+    assert get_io_output_pin(dut, 3).value == 0
 
 # TODO add more tests..
     

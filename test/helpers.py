@@ -195,7 +195,7 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100, extra_func=None
 
     # Timeout to ensure test does not run too long and generate a very large vcd
     timeout = Timer(1000, 'us')
-    halted_signal = RisingEdge(dut.cpu1.halted)
+    halted_signal = RisingEdge(get_halt_signal(dut))
 
     # Reset
     # dut._log.info("Reset")
@@ -208,10 +208,12 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100, extra_func=None
     if extra_func:
         await extra_func()
 
-    stop_signal = await First(halted_signal, timeout)
+    # check for stop signal if not halted already
+    if get_halt_signal(dut).value == 0:
+        stop_signal = await First(halted_signal, timeout)
 
-    # If stop signal was not halted signal, then the test timed out!
-    assert stop_signal == halted_signal
+        # If stop signal was not halted signal, then the test timed out!
+        assert stop_signal == halted_signal
 
     await ClockCycles(dut.clk, wait_cycles)
 
@@ -247,15 +249,15 @@ class ValueWrapper:
         self.value = BinaryValue(value)
 
 def get_output_pin(dut, index):
+    # output only pins
     if index == 0:
-        return dut.uo_out[1]
+        return dut.out0
     elif index == 1:
-        return dut.uo_out[2]
+        return dut.out1
     elif index == 2:
-        return dut.uo_out[6]
+        return dut.out2
     elif index == 3:
-        return dut.uo_out[7]
-    return None
+        return dut.out3
 
 def set_input_pin(dut, index, value):
     if index == 0:
@@ -270,3 +272,19 @@ def set_input_pin(dut, index, value):
         dut.ui_in[5].value = value
     elif index== 5:
         dut.ui_in[6].value = value
+
+def get_io_output_pin(dut, index):
+    # input/output pins
+    if index == 0:
+        return dut.io_out0
+    elif index == 1:
+        return dut.io_out1
+    elif index == 2:
+        return dut.io_out2
+    elif index == 3:
+        return dut.io_out3
+    elif index == 4:
+        return dut.io_out4
+    
+def get_halt_signal(dut):
+    return dut.cpu1.halted

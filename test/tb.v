@@ -35,7 +35,15 @@ module tb ();
     wire cs2 = uio_out[0];
 
     wire out0 = uo_out[1];
-    wire io4 = uio_out[7];
+    wire out1 = uo_out[2];
+    wire out2 = uo_out[6];
+    wire out3 = uo_out[7];
+
+    wire io_out0 = uio_out[3];
+    wire io_out1 = uio_out[4];
+    wire io_out2 = uio_out[5];
+    wire io_out3 = uio_out[6];
+    wire io_out4 = uio_out[7];
 
     reg miso;
     always_comb begin
