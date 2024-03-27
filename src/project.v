@@ -34,7 +34,6 @@ module tt_um_rv32e_cpu # (
     // assign uio_oe = 8'b00000001;
     assign uio_oe[2:0] = 0;
     assign uio_out[2:1] = 0;
-    assign uo_out[0] = 0;
 
     localparam STATE_FETCH_INSTRUCTION =    5'b00001;
     localparam STATE_READ_REGISTERS    =    5'b00010;
@@ -85,6 +84,8 @@ module tt_um_rv32e_cpu # (
         .io_direction(uio_oe[7:3]),             // direction for io pins
         .io_outputs(uio_out[7:3]),              // io pins output
         .io_inputs(uio_in[7:3]),                // io pins input
+
+        .uart_tx(uo_out[0]),                    // uart output pin
 
         .is_write(
             state == STATE_PARSE_INSTRUCTION & opcode == S_TYPE_INSTR

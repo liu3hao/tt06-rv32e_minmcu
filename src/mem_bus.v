@@ -18,6 +18,8 @@ module mem_bus #(
     output wire [4:0] io_outputs,
     input wire [4:0] io_inputs,
 
+    output wire uart_tx,
+
     // Limit to 3 address bytes, and 1 extra byte for whether it is
     // flash or RAM access.
     input  wire [address_size-1:0] target_address,
@@ -54,6 +56,11 @@ module mem_bus #(
     reg [7:0] spi_peripheral_rx_bytes;
     reg [3:0] spi_cs_bits;
 
+    reg [7:0] uart_tx_byte;
+    reg uart_start_tx;
+    wire uart_tx_done;
+    reg uart_status_bits;
+
     mem_external #(.address_size(address_size)) mem1(
         .miso(miso),
         .sclk(sclk),
@@ -75,6 +82,17 @@ module mem_bus #(
         .start_request(mem_start_request),
         .request_done(mem_request_done),
 
+        .clk(clk)
+    );
+
+    uart_tx uart0 (
+        .start_tx(uart_start_tx),
+        .tx_value(uart_tx_byte),
+
+        .tx_done(uart_tx_done),
+        .tx(uart_tx),
+
+        .rst_n(rst_n),
         .clk(clk)
     );
 
@@ -105,6 +123,10 @@ module mem_bus #(
             spi_peripheral_tx_bytes <= 0;
             spi_peripheral_start_request <= 0;
 
+            uart_start_tx <= 0;
+            uart_status_bits <= 0;
+            uart_tx_byte <= 0;
+
             state <= STATE_PARSE;
 
         end else begin
@@ -114,25 +136,36 @@ module mem_bus #(
                     STATE_PARSE: begin
                         if (is_write) begin
                             case (target_address[7:0])
-                                0: outputs_bits <= write_value[3:0];
-                                2: io_direction_bits <= write_value[4:0];
-                                4: io_outputs_bits <= io_direction_bits & write_value[4:0];
-                                5: begin
+                                8'h0: outputs_bits <= write_value[3:0];
+                                8'h2: io_direction_bits <= write_value[4:0];
+                                8'h4: io_outputs_bits <= io_direction_bits & write_value[4:0];
+                                8'h5: begin
                                     spi_peripheral_start_request <= 0;
                                     is_spi_peripheral <= write_value[0];
                                     spi_cs_bits <= write_value[4:1];
                                 end
-                                7: spi_peripheral_tx_bytes <= write_value[7:0];
+                                8'h7: spi_peripheral_tx_bytes <= write_value[7:0];
+                                8'h10: begin
+                                    if (uart_start_tx == 0 && write_value[0]) begin
+                                        uart_start_tx <= 1;
+                                        uart_status_bits <= 0;
+                                    end
+                                end
+                                8'h14: uart_tx_byte <= write_value[7:0];
                                 default: ;
                             endcase
                         end else begin
                             case (target_address[7:0])
-                                0: io_value <= {4'd0, outputs_bits};
-                                1: io_value <= {2'd0, input_bits};
-                                2: io_value <= {3'd0, io_direction_bits};
-                                3: io_value <= {3'd0, io_inputs_bits};
-                                4: io_value <= {3'd0, io_outputs_bits};
-                                8: io_value <= spi_peripheral_rx_bytes;
+                                8'h0:  io_value <= {4'd0, outputs_bits};
+                                8'h1:  io_value <= {2'd0, input_bits};
+                                8'h2:  io_value <= {3'd0, io_direction_bits};
+                                8'h3:  io_value <= {3'd0, io_inputs_bits};
+                                8'h4:  io_value <= {3'd0, io_outputs_bits};
+                                8'h7:  io_value <= spi_peripheral_tx_bytes;
+                                8'h8:  io_value <= spi_peripheral_rx_bytes;
+                                8'h10: io_value <= {7'd0, uart_start_tx};
+                                8'h11: io_value <= {7'd0, uart_status_bits};
+                                8'h14: io_value <= uart_tx_byte;
                                 default: ;
                             endcase
                         end
@@ -170,9 +203,12 @@ module mem_bus #(
             input_bits <= inputs;
             io_inputs_bits <= ~io_direction_bits & io_inputs;
         end
-    end
 
-    // assign outputs = outputs_bits;
+        if (uart_start_tx == 1 && uart_tx_done) begin
+            uart_status_bits <= 1;
+            uart_start_tx <= 0; // reset the start tx bit, to prepare for next
+        end
+    end
 
     wire peripheral_cs = ~(~is_mem & is_spi_peripheral & spi_in_transaction);
 

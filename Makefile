@@ -33,8 +33,8 @@ synth:
 	rm -rf runs/wokwi_syn
 	docker run --rm -v $(OPENLANE_ROOT):/openlane -v $(OPENLANE_PDK_ROOT):$(OPENLANE_PDK_ROOT) -v ${CURDIR}:/work -e PDK=sky130A -e PDK_ROOT=$(OPENLANE_PDK_ROOT) efabless/openlane:2023.11.23 /bin/bash -c "./flow2.tcl -design /work/src -run_path /work/runs -overwrite -tag wokwi_syn"
 	@sleep 1
-	sed -n '/70. Printing statistics./,/Chip area for module/p' runs/wokwi_syn/logs/synthesis/1-synthesis.log
-	sed -n '/70. Printing statistics./,/Number of cells:/p' runs/wokwi_syn/logs/synthesis/1-synthesis.log
+	sed -n '/71. Printing statistics./,/Chip area for module/p' runs/wokwi_syn/logs/synthesis/1-synthesis.log
+	sed -n '/71. Printing statistics./,/Number of cells:/p' runs/wokwi_syn/logs/synthesis/1-synthesis.log
 
 interactive:
 	docker run --rm -it -v $(OPENLANE_ROOT):/openlane -v $(OPENLANE_PDK_ROOT):$(OPENLANE_PDK_ROOT) -v ${CURDIR}:/work -e PDK=sky130A -e PDK_ROOT=$(OPENLANE_PDK_ROOT) efabless/openlane:2023.11.23 /bin/bash -c "./flow.tcl -interactive"

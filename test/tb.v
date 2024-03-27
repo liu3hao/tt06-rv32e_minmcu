@@ -31,13 +31,15 @@ module tb ();
 
     wire sclk = uo_out[5];
     wire mosi = uo_out[3];
-    wire cs1 = uo_out[4];
-    wire cs2 = uio_out[0];
+    wire cs1 =  uo_out[4];
+    wire cs2 =  uio_out[0];
 
     wire out0 = uo_out[1];
     wire out1 = uo_out[2];
     wire out2 = uo_out[6];
     wire out3 = uo_out[7];
+
+    wire uart_tx = uo_out[0]; // uart output
 
     wire io_out0 = uio_out[3];
     wire io_out1 = uio_out[4];

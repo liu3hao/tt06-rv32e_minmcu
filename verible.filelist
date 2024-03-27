@@ -3,3 +3,4 @@ src/mem_external.v
 src/mem_bus.v
 src/registers.v
 src/alu.v
+src/uart_tx.v
