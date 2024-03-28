@@ -19,6 +19,7 @@ module mem_bus #(
     input wire [4:0] io_inputs,
 
     output wire uart_tx,
+    input wire uart_rx,
 
     // Limit to 3 address bytes, and 1 extra byte for whether it is
     // flash or RAM access.
@@ -59,7 +60,11 @@ module mem_bus #(
     reg [7:0] uart_tx_byte;
     reg uart_start_tx;
     wire uart_tx_done;
-    reg uart_status_bits;
+    reg uart_status_bits_hold;
+
+    reg [7:0] uart_rx_byte;
+    reg uart_rx_available;
+    reg uart_rx_clear;
 
     mem_external #(.address_size(address_size)) mem1(
         .miso(miso),
@@ -91,6 +96,11 @@ module mem_bus #(
 
         .tx_done(uart_tx_done),
         .tx(uart_tx),
+
+        .rx_available(uart_rx_available),
+        .rx_value(uart_rx_byte),
+        .rx_clear(uart_rx_clear),
+        .rx(uart_rx),
 
         .rst_n(rst_n),
         .clk(clk)
@@ -124,8 +134,10 @@ module mem_bus #(
             spi_peripheral_start_request <= 0;
 
             uart_start_tx <= 0;
-            uart_status_bits <= 0;
+            uart_status_bits_hold <= 0;
             uart_tx_byte <= 0;
+
+            uart_rx_clear <= 0;
 
             state <= STATE_PARSE;
 
@@ -148,8 +160,12 @@ module mem_bus #(
                                 8'h10: begin
                                     if (uart_start_tx == 0 && write_value[0]) begin
                                         uart_start_tx <= 1;
-                                        uart_status_bits <= 0;
+                                        uart_status_bits_hold <= 0;
                                     end
+
+                                    // clear rx available bit
+                                    uart_rx_clear <= write_value[1];
+
                                 end
                                 8'h14: uart_tx_byte <= write_value[7:0];
                                 default: ;
@@ -164,8 +180,9 @@ module mem_bus #(
                                 8'h7:  io_value <= spi_peripheral_tx_bytes;
                                 8'h8:  io_value <= spi_peripheral_rx_bytes;
                                 8'h10: io_value <= {7'd0, uart_start_tx};
-                                8'h11: io_value <= {7'd0, uart_status_bits};
+                                8'h11: io_value <= {6'd0, uart_rx_available, uart_status_bits_hold};
                                 8'h14: io_value <= uart_tx_byte;
+                                8'h15: io_value <= uart_rx_byte;
                                 default: ;
                             endcase
                         end
@@ -205,7 +222,7 @@ module mem_bus #(
         end
 
         if (uart_start_tx == 1 && uart_tx_done) begin
-            uart_status_bits <= 1;
+            uart_status_bits_hold <= 1;
             uart_start_tx <= 0; // reset the start tx bit, to prepare for next
         end
     end

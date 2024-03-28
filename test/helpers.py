@@ -6,6 +6,7 @@ from cocotb.binary import BinaryValue
 from cocotbext.spi import SpiBus
 from cocotb.triggers import FallingEdge, RisingEdge, First
 from cocotbext.spi import SpiSlaveBase, SpiConfig
+from cocotbext.uart import UartSink
 
 class SpiFlashPeripheral(SpiSlaveBase):
     def __init__(self, bus, contents, dut, name):
@@ -166,7 +167,7 @@ def load_binary(path):
         output.append(b)
     return output
 
-async def run_program(dut, raw='', memory=None, wait_cycles=100, extra_func=None):
+async def run_program(dut, raw='', memory=None, wait_cycles=100, extra_func=None, timeout_us = 1000):
     # dut._log.info("Run program")
 
     if raw != '':
@@ -174,7 +175,7 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100, extra_func=None
         lines = raw.splitlines()
         lines = [line.strip() for line in lines]
         for line in lines:
-            if line != '':
+            if line != '' and not line.endswith(':') and not line.startswith('-') and line != 'Data Dump':
                 if '|' in line:
                     line = line.split('|')[1].strip()[2:]
                 memory.append(int(line, 16))
@@ -199,7 +200,7 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100, extra_func=None
     cocotb.start_soon(clock.start())
 
     # Timeout to ensure test does not run too long and generate a very large vcd
-    timeout = Timer(1000, 'us')
+    timeout = Timer(timeout_us, 'us')
     halted_signal = RisingEdge(get_halt_signal(dut))
 
     # Reset

@@ -86,6 +86,7 @@ module tt_um_rv32e_cpu # (
         .io_inputs(uio_in[7:3]),                // io pins input
 
         .uart_tx(uo_out[0]),                    // uart output pin
+        .uart_rx(ui_in[7]),                     // uart input pin
 
         .is_write(
             state == STATE_PARSE_INSTRUCTION & opcode == S_TYPE_INSTR

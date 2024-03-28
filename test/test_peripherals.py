@@ -3,7 +3,7 @@ from cocotb.triggers import RisingEdge, FallingEdge, First, ClockCycles
 from cocotbext.spi import SpiBus
 
 from helpers import SpiFlashPeripheral, get_halt_signal, get_io_output_pin, get_output_pin, get_register, load_binary, assert_registers_zero, run_program, set_input_pin
-from cocotbext.uart import UartSink
+from cocotbext.uart import UartSink, UartSource
 
 @cocotb.test()
 async def test_output_write_read_single(dut):
@@ -377,6 +377,7 @@ async def test_program5_uart_tx(dut):
     bytes = load_binary('binaries/prog5.bin')
     dut.ui_in.value = 0     # initialize inputs to some value, other tests fails
     dut.uio_in.value = 0
+    dut.ui_in[7].value = 1  # must set to high initially, otherwise this would trigger uart rx
 
     async def add_uart_device():
         uart_sink = UartSink(dut.uart_tx, baud=115200, bits=8)
@@ -396,3 +397,91 @@ async def test_program5_uart_tx(dut):
     ram_chip, flash_chip = await run_program(dut, memory=bytes, 
                                             extra_func=add_uart_device)
 
+
+@cocotb.test()
+async def test_uart_rx_single (dut):
+
+    async def add_uart_device():
+
+        uart_sink = UartSource(dut.uart_rx, baud=115200, bits=8)
+        await RisingEdge(dut.out0)  # wait to go high first before starting to send
+
+        await uart_sink.write([0b10101010])
+        print('sent data!')
+        
+    await run_program(dut, '''
+ 0x00000000	|	0x0200A083	|	lw x1, peripherals
+ 0x00000004	|	0x00200113	|	addi x2, x0, 2
+ 0x00000008	|	0x00100193	|	addi x3, x0, 1
+ 0x0000000C	|	0x00308023	|	sb x3, 0(x1)
+-------------------------------------------------------------------------
+ 	wait_for_rx:
+ 0x00000010	|	0x01108183	|	lb x3, 17(x1)
+ 0x00000014	|	0xFE219EE3	|	bne x3, x2, wait_for_rx
+ 0x00000018	|	0x0150C203	|	lbu x4, 21(x1)
+ 0x0000001C	|	0x0000006F	|	jal x0, 0
+-------------------------------------------------------------------------
+ Data Dump
+-------------------------------------------------------------------------
+ 0x00000024	|	0x00020000	|	..
+        ''', extra_func=add_uart_device, timeout_us=3000)
+
+    assert get_register(dut, 1).value == 0x20000
+    assert get_register(dut, 2).value == 2
+    assert get_register(dut, 3).value == 2
+    assert get_register(dut, 4).value == 0xaa
+    assert_registers_zero(dut, 5)
+    
+
+@cocotb.test()
+async def test_uart_rx_multiple(dut):
+
+    async def add_uart_device():
+
+        uart_sink = UartSource(dut.uart_rx, baud=115200, bits=8)
+        await RisingEdge(dut.out0)  # wait to go high first before starting to send
+
+        await uart_sink.write([0b10101010])
+
+        await FallingEdge(dut.out0)
+
+        await RisingEdge(dut.out0)
+
+        await uart_sink.write([0b01100110])
+
+        
+    await run_program(dut, '''
+ 0x00000000	|	0x0440A083	|	lw x1, peripherals
+ 0x00000004	|	0x00200113	|	addi x2, x0, 2
+ 0x00000008	|	0x00100193	|	addi x3, x0, 1
+ 0x0000000C	|	0x00308023	|	sb x3, 0(x1)
+-------------------------------------------------------------------------
+ 	wait_for_rx:
+ 0x00000010	|	0x01108203	|	lb x4, 17(x1)
+ 0x00000014	|	0xFE221EE3	|	bne x4, x2, wait_for_rx
+ 0x00000018	|	0x00008023	|	sb x0, 0(x1)
+ 0x0000001C	|	0x0150C283	|	lbu x5, 21(x1)
+ 0x00000020	|	0x00008023	|	sb x0, 0(x1)
+ 0x00000024	|	0x00208823	|	sb x2, 16(x1)
+ 0x00000028	|	0x00008823	|	sb x0, 16(x1)
+ 0x0000002C	|	0x00308023	|	sb x3, 0(x1)
+-------------------------------------------------------------------------
+ 	wait_for_rx_2:
+ 0x00000030	|	0x01108203	|	lb x4, 17(x1)
+ 0x00000034	|	0xFE221EE3	|	bne x4, x2, wait_for_rx_2
+ 0x00000038	|	0x00008023	|	sb x0, 0(x1)
+ 0x0000003C	|	0x0150C303	|	lbu x6, 21(x1)
+ 0x00000040	|	0x0000006F	|	jal x0, 0
+-------------------------------------------------------------------------
+ Data Dump
+-------------------------------------------------------------------------
+ 0x00000048	|	0x00020000	|	..
+        ''', extra_func=add_uart_device, timeout_us=3000)
+
+    assert get_register(dut, 1).value == 0x20000
+    assert get_register(dut, 2).value == 2
+    assert get_register(dut, 3).value == 1
+    assert get_register(dut, 4).value == 2
+    assert get_register(dut, 5).value == 0xaa
+    assert get_register(dut, 6).value == 0x66
+    assert_registers_zero(dut, 7)
