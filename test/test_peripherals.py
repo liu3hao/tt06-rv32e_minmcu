@@ -68,36 +68,31 @@ async def test_output_write_over(dut):
 
 @cocotb.test()
 async def test_read_input_pins(dut):
-    # lw x1, 32(x0)
-    # lb x2, 1(x1)
-    # addi x3, x3, 1
-    # sb x3, 0(x1)
-    # lb x4, 1(x1)
-
     dut.ui_in.value = 0
 
     async def connect_pins():
         # when there is a high detected on this pin, then set input pins
         await RisingEdge(dut.out0)
         dut.ui_in[0].value = 1
-        dut.ui_in[6].value = 1
+        dut.ui_in[5].value = 1
 
     ram_chip, flash = await run_program(dut, '''
-        02002083
-        00108103
-        00118193
-        00308023
-        00108203
-        0000006f
-        0
-        0
-        00020000
+ 0x00000000	|	0x0180A083	|	lw x1, peripherals
+ 0x00000004	|	0x00108103	|	lb x2, 1(x1)
+ 0x00000008	|	0x00100193	|	addi x3, x0, 1
+ 0x0000000C	|	0x00308023	|	sb x3, 0(x1)
+ 0x00000010	|	0x00108203	|	lb x4, 1(x1)
+ 0x00000014	|	0x0000006F	|	jal x0, 0
+-------------------------------------------------------------------------
+ Data Dump
+-------------------------------------------------------------------------
+ 0x0000001C	|	0x00020000	
         ''', extra_func=connect_pins)
     
     assert get_register(dut, 1).value == 0x20000
     assert get_register(dut, 2).value == 0
     assert get_register(dut, 3).value == 1
-    assert get_register(dut, 4).value == 33
+    assert get_register(dut, 4).value == 17
     assert_registers_zero(dut, 5)
 
 @cocotb.test()

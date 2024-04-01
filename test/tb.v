@@ -40,6 +40,7 @@ module tb ();
     wire out3 = uo_out[7];
 
     wire uart_tx = uo_out[0]; // uart output
+    reg uart_rx;
 
     wire io_out0 = uio_out[3];
     wire io_out1 = uio_out[4];
@@ -50,6 +51,7 @@ module tb ();
     reg miso;
     always_comb begin
         ui_in[2] = miso;
+        ui_in[7] = uart_rx;
     end
 
     // Replace tt_um_example with your module name:

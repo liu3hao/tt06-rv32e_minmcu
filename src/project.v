@@ -78,7 +78,7 @@ module tt_um_rv32e_cpu # (
 
         .num_bytes(mem_num_bytes),
 
-        .inputs({ui_in[6:3], ui_in[1:0]}),      // input only pins
+        .inputs({ui_in[5:3], ui_in[1:0]}),      // input only pins
         .outputs({uo_out[7:6], uo_out[2:1]}),   // output only pins
 
         .io_direction(uio_oe[7:3]),             // direction for io pins

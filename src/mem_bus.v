@@ -11,7 +11,7 @@ module mem_bus #(
 
     input wire [2:0] num_bytes,
 
-    input wire [5:0] inputs,
+    input wire [4:0] inputs,
     output reg [3:0] outputs,
 
     output wire [4:0] io_direction,
@@ -108,7 +108,7 @@ module mem_bus #(
     );
 
     reg [3:0] outputs_bits;     // output only pins
-    reg [5:0] input_bits;       // input only pins
+    reg [4:0] input_bits;       // input only pins
 
     reg [4:0] io_direction_bits;    // io pins direction
     reg [4:0] io_inputs_bits;       // io pins input value
@@ -177,7 +177,7 @@ module mem_bus #(
                         end else begin
                             case (target_address[7:0])
                                 8'h0:  io_value <= {4'd0, outputs_bits};
-                                8'h1:  io_value <= {2'd0, input_bits};
+                                8'h1:  io_value <= {3'd0, input_bits};
                                 8'h2:  io_value <= {3'd0, io_direction_bits};
                                 8'h3:  io_value <= {3'd0, io_inputs_bits};
                                 8'h4:  io_value <= {3'd0, io_outputs_bits};
