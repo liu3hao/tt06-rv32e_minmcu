@@ -17,7 +17,7 @@ PROJECT_SOURCES += mem_external.v
 PROJECT_SOURCES += mem_bus.v
 PROJECT_SOURCES += registers.v
 PROJECT_SOURCES += alu.v
-PROJECT_SOURCES += uart_tx.v
+PROJECT_SOURCES += uart.v
 
 PDK_ROOT = $(OPENLANE_PDK_ROOT)
 

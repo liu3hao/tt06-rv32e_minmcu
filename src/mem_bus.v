@@ -90,7 +90,7 @@ module mem_bus #(
         .clk(clk)
     );
 
-    uart_tx uart0 (
+    uart uart0 (
         .start_tx(uart_start_tx),
         .tx_value(uart_tx_byte),
 

@@ -20,7 +20,7 @@ project:
     - "mem_bus.v"
     - "registers.v"
     - "alu.v"
-    - "uart_tx.v"
+    - "uart.v"
 
 # The pinout of your project. Leave unused pins blank. DO NOT delete or add any pins.
 pinout:

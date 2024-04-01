@@ -1,5 +1,5 @@
 
-module uart_tx (
+module uart (
     input wire start_tx,
     input [7:0] tx_value,
     output wire tx_done,
