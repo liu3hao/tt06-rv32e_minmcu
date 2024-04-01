@@ -166,31 +166,59 @@ async def test_spi_peripherals(dut):
         tmp_spi.custom_func = tmp
 
     ram_chip, flash = await run_program(dut, '''
-0x00000000	|	0x02402083	|	lw x1, 36(x0)
-0x00000004	|	0x01500113	|	addi x2, x0, 21
-0x00000008	|	0x00300193	|	addi x3, x0, 3
-0x0000000C	|	0x002083A3	|	sb x2, 7(x1)
-0x00000010	|	0x000082A3	|	sb x0, 5(x1)
-0x00000014	|	0x003082A3	|	sb x3, 5(x1)
-0x00000018	|	0x000082A3	|	sb x0, 5(x1)
-0x0000001C	|	0x00808203	|	lb x4, 8(x1)
-        0000006f
-        00020000
+ 0x00000000	|	0x0280A083	|	lw x1, peripherals
+ 0x00000004	|	0x01500113	|	addi x2, x0, 21
+ 0x00000008	|	0x00300193	|	addi x3, x0, 3
+ 0x0000000C	|	0x00208423	|	sb x2, 8(x1)
+ 0x00000010	|	0x000082A3	|	sb x0, 5(x1)
+ 0x00000014	|	0x003082A3	|	sb x3, 5(x1)
+ 0x00000018	|	0x00608283	|	lb x5, 6(x1)
+ 0x0000001C	|	0x00C08203	|	lb x4, 12(x1)
+ 0x00000020	|	0x000082A3	|	sb x0, 5(x1)
+ 0x00000024	|	0x0000006F	|	jal x0, 0
+-------------------------------------------------------------------------
+ Data Dump
+-------------------------------------------------------------------------
+ 0x0000002C	|	0x00020000	
         ''', extra_func=add_spi_device)
     
     assert get_register(dut, 1).value == 0x20000
     assert get_register(dut, 2).value == 21
     assert get_register(dut, 3).value == 3
     assert get_register(dut, 4).value == 22
-    assert assert_registers_zero(dut, 5)
+    assert get_register(dut, 5).value == 1
+    assert assert_registers_zero(dut, 6)
+
+@cocotb.test()
+async def test_spi_program(dut):
+
+    async def add_spi_device():
+        tmp_spi = SpiFlashPeripheral(SpiBus.from_entity(dut,
+                                                cs_name='out0'), {}, 
+                                                dut, name='tmp_spi1')
+
+        async def tmp(first_byte):
+            # return the byte + 1
+            await tmp_spi.shift2(8, first_byte + 1)
+
+        tmp_spi.custom_func = tmp
+
+    bytes = load_binary('binaries/test_spi.bin')
+    ram_chip, flash_chip = await run_program(dut, memory=bytes, 
+                                             extra_func=add_spi_device)
+
+    # ram_chip.dump_memory2()
+
+    # return value of the function
+    assert get_register(dut, 10).value == 0xab + 1
 
 @cocotb.test()
 async def test_program1(dut):
 
-    bytes = load_binary('binaries/prog1.bin')
+    bytes = load_binary('binaries/test_program.bin')
     ram_chip, flash_chip = await run_program(dut, memory=bytes)
 
-    ram_chip.dump_memory2()
+    # ram_chip.dump_memory2()
 
     # return value of the function
     assert get_register(dut, 10).value == 1024
@@ -199,8 +227,8 @@ async def test_program1(dut):
 async def test_program3(dut):
     # program sets output pins and reads input pins
 
-    bytes = load_binary('binaries/prog3.bin')
-    dut.ui_in.value = 0     # initialize inputs to some value, other tests fails
+    bytes = load_binary('binaries/test_input_output_pins.bin')
+    dut.ui_in.value = 0     # initialize inputs to some value, otherwise tests fails
 
     async def detect_edges():
         halted_signal = RisingEdge(get_halt_signal(dut))
@@ -227,13 +255,15 @@ async def test_program3(dut):
             else:
                 break
 
+        print(rising_edges, falling_edges)
+
         assert rising_edges == 5
         assert falling_edges == 5
 
     ram_chip, flash_chip = await run_program(dut, memory=bytes, 
                                             extra_func=detect_edges)
 
-    ram_chip.dump_memory2()
+    # ram_chip.dump_memory2()
 
     # return value is the result of the input pins register
     assert get_register(dut, 10).value == 5
@@ -247,7 +277,7 @@ async def test_program3(dut):
 async def test_program4(dut):
     # program sets output pins and reads input pins
 
-    bytes = load_binary('binaries/prog4.bin')
+    bytes = load_binary('binaries/test_io_pins.bin')
     dut.ui_in.value = 0     # initialize inputs to some value, other tests fails
     dut.uio_in.value = 0
 
@@ -277,7 +307,7 @@ async def test_program4(dut):
     ram_chip, flash_chip = await run_program(dut, memory=bytes, 
                                             extra_func=detect_edges)
 
-    ram_chip.dump_memory2()
+    # ram_chip.dump_memory2()
 
     # return value is the result of the input pins register
     assert get_register(dut, 10).value == 4
@@ -374,7 +404,7 @@ Data Dump
 async def test_program5_uart_tx(dut):
     # program sets output pins and reads input pins
 
-    bytes = load_binary('binaries/prog5.bin')
+    bytes = load_binary('binaries/test_uart.bin')
     dut.ui_in.value = 0     # initialize inputs to some value, other tests fails
     dut.uio_in.value = 0
     dut.ui_in[7].value = 1  # must set to high initially, otherwise this would trigger uart rx

@@ -56,6 +56,7 @@ module mem_bus #(
     reg [7:0] spi_peripheral_tx_bytes;
     reg [7:0] spi_peripheral_rx_bytes;
     reg [3:0] spi_cs_bits;
+    reg spi_op_done;
 
     reg [7:0] uart_tx_byte;
     reg uart_start_tx;
@@ -122,6 +123,7 @@ module mem_bus #(
     always @ (posedge clk) begin
         if (~rst_n) begin
             outputs_bits <= 0;
+            spi_cs_bits <= 0;
             io_request_done <= 0;
             input_bits <= 0;
 
@@ -132,6 +134,7 @@ module mem_bus #(
             is_spi_peripheral <= 0;
             spi_peripheral_tx_bytes <= 0;
             spi_peripheral_start_request <= 0;
+            spi_op_done <= 0;
 
             uart_start_tx <= 0;
             uart_status_bits_hold <= 0;
@@ -155,8 +158,9 @@ module mem_bus #(
                                     spi_peripheral_start_request <= 0;
                                     is_spi_peripheral <= write_value[0];
                                     spi_cs_bits <= write_value[4:1];
+                                    spi_op_done <= 0;
                                 end
-                                8'h7: spi_peripheral_tx_bytes <= write_value[7:0];
+                                8'h8: spi_peripheral_tx_bytes <= write_value[7:0];
                                 8'h10: begin
                                     if (uart_start_tx == 0 && write_value[0]) begin
                                         uart_start_tx <= 1;
@@ -177,8 +181,9 @@ module mem_bus #(
                                 8'h2:  io_value <= {3'd0, io_direction_bits};
                                 8'h3:  io_value <= {3'd0, io_inputs_bits};
                                 8'h4:  io_value <= {3'd0, io_outputs_bits};
-                                8'h7:  io_value <= spi_peripheral_tx_bytes;
-                                8'h8:  io_value <= spi_peripheral_rx_bytes;
+                                8'h6:  io_value <= {7'd0, spi_op_done};
+                                8'h8:  io_value <= spi_peripheral_tx_bytes;
+                                8'hC:  io_value <= spi_peripheral_rx_bytes;
                                 8'h10: io_value <= {7'd0, uart_start_tx};
                                 8'h11: io_value <= {6'd0, uart_rx_available, uart_status_bits_hold};
                                 8'h14: io_value <= uart_tx_byte;
@@ -205,6 +210,7 @@ module mem_bus #(
                                 io_request_done <= 1;
                                 is_spi_peripheral <= 0;
                                 state <= STATE_DONE;
+                                spi_op_done <= 1;
                             end
                         end
                     end
