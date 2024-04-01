@@ -12,7 +12,7 @@ localparam SPI_RX_BUFFER_SIZE = 32;
 
 localparam SPI_CMD_BITS = 8'd32; //1 byte for code, 3 for address bytes
 
-module mem_external # (
+module spi_controller # (
     parameter address_size = 16+2
     ) (
     input  wire miso,  // Main spi signals

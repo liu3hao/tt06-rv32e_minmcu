@@ -67,7 +67,7 @@ module mem_bus #(
     reg uart_rx_available;
     reg uart_rx_clear;
 
-    mem_external #(.address_size(address_size)) mem1(
+    spi_controller #(.address_size(address_size)) spi_controller1 (
         .miso(miso),
         .sclk(sclk),
         .mosi(mosi),
