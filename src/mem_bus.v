@@ -9,6 +9,8 @@ module mem_bus #(
     output wire cs1,    // CS for flash memory
     output wire cs2,    // CS for RAM
 
+    input wire debug_mode,
+
     input wire [2:0] num_bytes,
 
     input wire [4:0] inputs,
@@ -234,21 +236,34 @@ module mem_bus #(
     end
 
     wire peripheral_cs = ~(~is_mem & is_spi_peripheral & spi_in_transaction);
+    wire debug_cs = ~(debug_mode & (spi_in_transaction));
 
     always @ (*) begin
         case (spi_cs_bits)
-            4'b0001: outputs = (outputs_bits & 4'b1110) | {3'd0, peripheral_cs};
-            4'b0010: outputs = (outputs_bits & 4'b1101) | ({3'd0, peripheral_cs} << 1);
-            4'b0100: outputs = (outputs_bits & 4'b1011) | ({3'd0, peripheral_cs} << 2);
-            4'b1000: outputs = (outputs_bits & 4'b0111) | ({3'd0, peripheral_cs} << 3);
-            default: outputs = outputs_bits;
+            4'b0001: outputs = (outputs_bits & 4'b1110) | {3'd0, peripheral_cs}         | {3'd0, debug_cs} << 3;
+            4'b0010: outputs = (outputs_bits & 4'b1101) | ({3'd0, peripheral_cs} << 1)  | {3'd0, debug_cs} << 3;
+            4'b0100: outputs = (outputs_bits & 4'b1011) | ({3'd0, peripheral_cs} << 2)  | {3'd0, debug_cs} << 3;
+            4'b1000: begin
+                if (debug_mode) begin
+                    outputs = (outputs_bits & 4'b0111) | {3'd0, debug_cs} << 3;
+                end else begin
+                    outputs = (outputs_bits & 4'b0111) | ({3'd0, peripheral_cs} << 3);
+                end
+            end
+            default: begin
+                if (debug_mode) begin
+                    outputs = {1'd0, outputs_bits[2:0]} | {3'd0, debug_cs} << 3;
+                end else begin
+                    outputs = outputs_bits;
+                end
+            end
         endcase
     end
 
     assign io_direction = io_direction_bits;
     assign io_outputs = io_outputs_bits;
 
-    assign cs1 = ~(is_mem & spi_in_transaction & ~target_address[address_size-2]);
-    assign cs2 = ~(is_mem & spi_in_transaction & target_address[address_size-2]);
+    assign cs1 = ~(~debug_mode & is_mem & spi_in_transaction & ~target_address[address_size-2]);
+    assign cs2 = ~(~debug_mode & is_mem & spi_in_transaction & target_address[address_size-2]);
 
 endmodule

@@ -96,6 +96,7 @@ class SpiFlashPeripheral(SpiSlaveBase):
                         result = (result << 1) | int(self._mosi.value)
 
                     await FallingEdge(self._sclk)
+                    self.debugLog('write value: %d' % result)
                     self.contents[address] = result
                     address += 1
                     
