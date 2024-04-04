@@ -313,8 +313,6 @@ async def test_program4(dut):
     assert get_io_output_pin(dut, 3).value == 0
     assert get_io_output_pin(dut, 3).value == 0
 
-
-
 @cocotb.test()
 async def test_uart_tx_single(dut):
 
@@ -324,27 +322,27 @@ async def test_uart_tx_single(dut):
         result = await uart_sink.read(1)
         result = [int(val) for val in result][0]
 
-        assert result == 0x0c
+        assert result == 202
 
     await run_program(dut, '''
 0x00000000	|	0x0200A083	|	lw x1, peripherals
-0x00000004	|	0x00C00113	|	addi x2, x0, 12
+0x00000004	|	0x0CA00113	|	addi x2, x0, 202
 0x00000008	|	0x00100193	|	addi x3, x0, 1
 0x0000000C	|	0x00208A23	|	sb x2, 20(x1)
 0x00000010	|	0x00308823	|	sb x3, 16(x1)
 -------------------------------------------------------------------------
-    here:
+here:
 0x00000014	|	0x01108203	|	lb x4, 17(x1)
 0x00000018	|	0xFE321EE3	|	bne x4, x3, here
 0x0000001C	|	0x0000006F	|	jal x0, 0
 -------------------------------------------------------------------------
 Data Dump
 -------------------------------------------------------------------------
-0x00000024	|	0x00020000	|	..
+0x00000024	|	0x00020000	
         ''', extra_func=add_uart_device, timeout_us=2000)
 
     assert get_register(dut, 1).value == 0x20000
-    assert get_register(dut, 2).value == 12
+    assert get_register(dut, 2).value == 202
     assert get_register(dut, 3).value == 1
     assert get_register(dut, 4).value == 1
     assert_registers_zero(dut, 5)

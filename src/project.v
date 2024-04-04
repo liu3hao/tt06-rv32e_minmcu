@@ -15,6 +15,8 @@ localparam B_TYPE_INSTR =       7'h63;
 localparam I_TYPE_JUMP_INSTR =  7'h67;  // JALR
 localparam J_TYPE_INSTR =       7'h6F;  // JAL
 
+localparam reg_counter_end =    4'd15;
+
 module tt_um_rv32e_cpu # (
         parameter address_size = 16+2
     )(
@@ -41,8 +43,8 @@ module tt_um_rv32e_cpu # (
     localparam STATE_WRITE_REGISTER    =    5'b01000;
     localparam STATE_MOVE_PROG_COUNTER =    5'b10000;
 
-    localparam DEBUG_STATE_READ_REGISTERS =  3'b010;
-    localparam DEBUG_STATE_TX_VALUE =        3'b100;
+    localparam DEBUG_STATE_READ_REGISTERS =  2'b01;
+    localparam DEBUG_STATE_TX_VALUE =        2'b10;
 
     reg [4:0] state; // State of the CPU
 
@@ -61,7 +63,7 @@ module tt_um_rv32e_cpu # (
     reg halted;
 
     reg reg_shift;                      // If 1, then register file will shift
-    reg [4:0] reg_counter;              // Count up to 15 for shifting into register file
+    reg [3:0] reg_counter;              // Count up to 15 for shifting into register file
     reg [31:0] full_reg_write_value;    // Holds full word to be stored in registers
 
     wire [2:0] mem_num_bytes = (state == STATE_FETCH_INSTRUCTION) ? 3'd4
@@ -73,8 +75,8 @@ module tt_um_rv32e_cpu # (
     wire request_debug_mode = ui_in[6];
 
     reg debug_mode;
-    reg [5:0] debug_counter;
-    reg [2:0] debug_state;
+    reg [3:0] debug_counter;
+    reg [1:0] debug_state;
     reg [31:0] debug_value;
 
     mem_bus #(.address_size(address_size)) mem_external1(
@@ -107,7 +109,7 @@ module tt_um_rv32e_cpu # (
 
         .target_address(
             // Memory space is limited to 3 bytes and 1 extra bit.
-            debug_mode ? {10'd0, debug_counter, 2'd0} : alu_result[address_size-1:0]
+            debug_mode ? {12'd0, debug_counter, 2'd0} : alu_result[address_size-1:0]
         ),
 
         .fetched_value(mem_fetched_value),
@@ -354,41 +356,38 @@ module tt_um_rv32e_cpu # (
 
             case (debug_state)
                 DEBUG_STATE_READ_REGISTERS: begin
-
-                    // Move this into the debug state machine too
                     if (request_debug_mode == 0) begin
                         debug_mode <= 0;
                     end else begin
                         mem_start_request <= 0;
 
                         if (debug_counter == 0) begin
-                            // write out the program counter
+                            // write out the program counter instead, since reg 0 is always 0.
                             debug_value <= {14'd0, prog_counter};
                             debug_state <= DEBUG_STATE_TX_VALUE;
                         end else begin
-                            reg_shift <= 1;
                             debug_value <= (debug_value >> 2) | {rs1_bit, 30'd0};
                             reg_counter <= reg_counter + 1;
 
-                            if (reg_counter == 5'd16) begin
+                            if (reg_counter == reg_counter_end) begin
                                 reg_counter <= 0;
                                 reg_shift <= 0;
                                 debug_state <= DEBUG_STATE_TX_VALUE;
                             end
                         end
                     end
-
                 end
                 DEBUG_STATE_TX_VALUE: begin
                     // send out values through SPI bus
                     mem_start_request <= 1;
                     if (mem_request_done == 1) begin
-                        if (debug_counter + 1 == 16) begin
-                            debug_counter <= 0;
-                        end else begin
-                            debug_counter <= debug_counter + 1;
-                        end
 
+                        // let counter roll over
+                        debug_counter <= debug_counter + 1;
+
+                        // If counter is restarting from 0, do not set register
+                        // shift since the program counter will be read.
+                        reg_shift <= (debug_counter == 4'd15) ? 0 : 1;
                         debug_state <= DEBUG_STATE_READ_REGISTERS;
                     end
                 end
@@ -405,6 +404,7 @@ module tt_um_rv32e_cpu # (
                     if (request_debug_mode == 1) begin
                         debug_mode <= 1;
                         reg_counter <= 0; // reset
+                        reg_shift <= 0;
 
                     end else begin
                         debug_mode <= 0;
@@ -436,7 +436,7 @@ module tt_um_rv32e_cpu # (
                         reg_shift <= 1;
                     end
 
-                    if (reg_counter == 5'd15) begin
+                    if (reg_counter == reg_counter_end) begin
                         reg_counter <= 0;
                         reg_shift <= 0;
                         state <= STATE_PARSE_INSTRUCTION;
@@ -461,7 +461,7 @@ module tt_um_rv32e_cpu # (
 
                     reg_counter <= reg_counter + 1;
 
-                     if (reg_counter == 5'd15) begin
+                     if (reg_counter == reg_counter_end) begin
                         state <= STATE_MOVE_PROG_COUNTER;
                         reg_shift <= 0;
                     end
