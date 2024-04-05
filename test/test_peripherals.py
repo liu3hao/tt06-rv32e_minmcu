@@ -348,6 +348,62 @@ Data Dump
     assert_registers_zero(dut, 5)
 
 @cocotb.test()
+async def test_uart_tx_single_flow_control(dut):
+
+    # set as high, so do not expect data to be sent
+    dut.ui_in[0].value = 1
+
+    async def add_uart_device():
+        uart_sink = UartSink(dut.uart_tx, baud=115200, bits=8)
+
+        await RisingEdge(dut.out1)  # wait for signal from program
+
+        # set as low, so send the data
+        dut.ui_in[0].value = 0
+
+        result = await uart_sink.read(1)
+        result = [int(val) for val in result][0]
+
+        assert result == 202
+        print('reached here')
+
+    await run_program(dut, '''
+ 0x00000000	|	0x03C0A083	|	lw x1, peripherals
+ 0x00000004	|	0x0CA00113	|	addi x2, x0, 202
+ 0x00000008	|	0x00500193	|	addi x3, x0, 5
+ 0x0000000C	|	0x00A00313	|	addi x6, x0, 10
+ 0x00000010	|	0x00200393	|	addi x7, x0, 2
+ 0x00000014	|	0x00100413	|	addi x8, x0, 1
+ 0x00000018	|	0x00208A23	|	sb x2, 20(x1)
+ 0x0000001C	|	0x00308823	|	sb x3, 16(x1)
+-------------------------------------------------------------------------
+ 	here:
+ 0x00000020	|	0x01108203	|	lb x4, 17(x1)
+ 0x00000024	|	0x00629663	|	bne x5, x6, here2
+ 0x00000028	|	0xFE821CE3	|	bne x4, x8, here
+ 0x0000002C	|	0x0000006F	|	jal x0, 0
+-------------------------------------------------------------------------
+ 	here2:
+ 0x00000030	|	0x00128293	|	addi x5, x5, 1
+ 0x00000034	|	0x00708023	|	sb x7, 0(x1)
+ 0x00000038	|	0xFE9FF06F	|	jal x0, here
+-------------------------------------------------------------------------
+ Data Dump
+-------------------------------------------------------------------------
+ 0x00000040	|	0x00020000	
+        ''', extra_func=add_uart_device, timeout_us=2000)
+
+    assert get_register(dut, 1).value == 0x20000
+    assert get_register(dut, 2).value == 202
+    assert get_register(dut, 3).value == 5
+    assert get_register(dut, 4).value == 1
+    assert get_register(dut, 5).value == 10
+    assert get_register(dut, 6).value == 10
+    assert get_register(dut, 7).value == 2
+    assert get_register(dut, 8).value == 1
+    assert_registers_zero(dut, 9)
+
+@cocotb.test()
 async def test_uart_tx_multiple(dut):
 
     async def add_uart_device():
@@ -430,7 +486,6 @@ async def test_uart_rx_single (dut):
         await RisingEdge(dut.out0)  # wait to go high first before starting to send
 
         await uart_sink.write([0b10101010])
-        print('sent data!')
         
     await run_program(dut, '''
  0x00000000	|	0x0200A083	|	lw x1, peripherals
@@ -508,3 +563,60 @@ async def test_uart_rx_multiple(dut):
     assert get_register(dut, 5).value == 0xaa
     assert get_register(dut, 6).value == 0x66
     assert_registers_zero(dut, 7)
+
+
+@cocotb.test()
+async def test_uart_rx_flow_control (dut):
+
+    dut.ui_in[0].value = 0
+
+    async def add_uart_device():
+
+        uart_sink = UartSource(dut.uart_rx, baud=115200, bits=8)
+        await RisingEdge(dut.out0)  # wait to go high first before starting to send
+
+        await uart_sink.write([0b10101010])
+        assert dut.out0.value == 1
+        await FallingEdge(dut.out0)
+
+        await RisingEdge(dut.out0)  # wait to go high again
+        await uart_sink.write([0b11110011])
+
+        await FallingEdge(dut.out0)
+        
+    await run_program(dut, '''
+ 0x00000000	|	0x0480A083	|	lw x1, peripherals
+ 0x00000004	|	0x00200113	|	addi x2, x0, 2
+ 0x00000008	|	0x00100193	|	addi x3, x0, 1
+ 0x0000000C	|	0x00400313	|	addi x6, x0, 4
+ 0x00000010	|	0x00308023	|	sb x3, 0(x1)
+ 0x00000014	|	0x00608823	|	sb x6, 16(x1)
+-------------------------------------------------------------------------
+ 	wait_for_rx:
+ 0x00000018	|	0x01108183	|	lb x3, 17(x1)
+ 0x0000001C	|	0xFE219EE3	|	bne x3, x2, wait_for_rx
+ 0x00000020	|	0x0150C203	|	lbu x4, 21(x1)
+ 0x00000024	|	0x00000193	|	addi x3, x0, 0
+ 0x00000028	|	0x00600313	|	addi x6, x0, 6
+ 0x0000002C	|	0x00608823	|	sb x6, 16(x1)
+ 0x00000030	|	0x00400313	|	addi x6, x0, 4
+ 0x00000034	|	0x00608823	|	sb x6, 16(x1)
+-------------------------------------------------------------------------
+ 	wait_for_rx2:
+ 0x00000038	|	0x01108183	|	lb x3, 17(x1)
+ 0x0000003C	|	0xFE219EE3	|	bne x3, x2, wait_for_rx2
+ 0x00000040	|	0x0150C283	|	lbu x5, 21(x1)
+ 0x00000044	|	0x0000006F	|	jal x0, 0
+-------------------------------------------------------------------------
+ Data Dump
+-------------------------------------------------------------------------
+ 0x0000004C	|	0x00020000
+        ''', extra_func=add_uart_device, timeout_us=3000)
+
+    assert get_register(dut, 1).value == 0x20000
+    assert get_register(dut, 2).value == 2
+    assert get_register(dut, 3).value == 2
+    assert get_register(dut, 4).value == 0xaa
+    assert get_register(dut, 6).value == 4
+    assert_registers_zero(dut, 7)
+    

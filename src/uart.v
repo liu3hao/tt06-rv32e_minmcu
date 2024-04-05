@@ -10,6 +10,9 @@ module uart (
     output reg [7:0] rx_value,
     input wire rx_clear,
 
+    input wire clear_to_send,
+    output wire request_to_send,
+
     input wire rst_n,
     input wire clk
 );
@@ -65,7 +68,7 @@ module uart (
                     counter <= 0;
                     uart_tx_clk <= 0;
 
-                   if(start_tx == 1) begin
+                   if(start_tx & ~clear_to_send) begin
                         state <= STATE_UART_TX;
                         buffer <= {tx_value, 1'b0};
                     end else if (rx == 0 && rx_clear == 0) begin
@@ -117,8 +120,11 @@ module uart (
         end
     end
 
-    assign tx = (state == STATE_UART_IDLE | state == STATE_UART_TX_DONE) ? 1 : buffer[0];
+    assign tx = (state == STATE_UART_TX) ? buffer[0] : 1;
     assign tx_done = (state == STATE_UART_TX_DONE);
     assign rx_available = (state == STATE_UART_RX_AVAILABLE);
+
+    // Set req to send to high, only if in idle and there is no rx available
+    assign request_to_send = (state == STATE_UART_IDLE | state == STATE_UART_RX) & ~rx_available;
 
 endmodule

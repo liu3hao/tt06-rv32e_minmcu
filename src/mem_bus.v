@@ -68,6 +68,9 @@ module mem_bus #(
     reg [7:0] uart_rx_byte;
     reg uart_rx_available;
     reg uart_rx_clear;
+    reg uart_flow_control_en;
+    reg uart_request_to_send;
+    reg uart_clear_to_send;
 
     spi_controller #(.address_size(address_size)) spi_controller1 (
         .miso(miso),
@@ -104,6 +107,9 @@ module mem_bus #(
         .rx_value(uart_rx_byte),
         .rx_clear(uart_rx_clear),
         .rx(uart_rx),
+
+        .clear_to_send(~uart_flow_control_en ? 1'd0 : uart_clear_to_send),
+        .request_to_send(uart_request_to_send),
 
         .rst_n(rst_n),
         .clk(clk)
@@ -145,6 +151,8 @@ module mem_bus #(
             uart_rx_clear <= 0;
 
             state <= STATE_PARSE;
+            uart_flow_control_en <= 0; // default is no flow control
+            uart_clear_to_send <= 1;
 
         end else begin
             if (start_request) begin
@@ -171,6 +179,7 @@ module mem_bus #(
 
                                     // clear rx available bit
                                     uart_rx_clear <= write_value[1];
+                                    uart_flow_control_en <= write_value[2];
 
                                 end
                                 8'h14: uart_tx_byte <= write_value[7:0];
@@ -186,7 +195,7 @@ module mem_bus #(
                                 8'h6:  io_value <= {7'd0, spi_op_done};
                                 8'h8:  io_value <= spi_peripheral_tx_bytes;
                                 8'hC:  io_value <= spi_peripheral_rx_bytes;
-                                8'h10: io_value <= {7'd0, uart_start_tx};
+                                8'h10: io_value <= {5'd0, uart_flow_control_en, uart_rx_clear, uart_start_tx};
                                 8'h11: io_value <= {6'd0, uart_rx_available, uart_status_bits_hold};
                                 8'h14: io_value <= uart_tx_byte;
                                 8'h15: io_value <= uart_rx_byte;
@@ -227,9 +236,11 @@ module mem_bus #(
             // always update the input bits
             input_bits <= inputs;
             io_inputs_bits <= ~io_direction_bits & io_inputs;
+
+            uart_clear_to_send <= uart_flow_control_en ? inputs[0] : 0;
         end
 
-        if (uart_start_tx == 1 && uart_tx_done) begin
+        if (uart_start_tx & uart_tx_done) begin
             uart_status_bits_hold <= 1;
             uart_start_tx <= 0; // reset the start tx bit, to prepare for next
         end
@@ -238,26 +249,17 @@ module mem_bus #(
     wire peripheral_cs = ~(~is_mem & is_spi_peripheral & spi_in_transaction);
     wire debug_cs = ~(debug_mode & (spi_in_transaction));
 
-    always @ (*) begin
-        case (spi_cs_bits)
-            4'b0001: outputs = (outputs_bits & 4'b1110) | {3'd0, peripheral_cs}         | {3'd0, debug_cs} << 3;
-            4'b0010: outputs = (outputs_bits & 4'b1101) | ({3'd0, peripheral_cs} << 1)  | {3'd0, debug_cs} << 3;
-            4'b0100: outputs = (outputs_bits & 4'b1011) | ({3'd0, peripheral_cs} << 2)  | {3'd0, debug_cs} << 3;
-            4'b1000: begin
-                if (debug_mode) begin
-                    outputs = (outputs_bits & 4'b0111) | {3'd0, debug_cs} << 3;
-                end else begin
-                    outputs = (outputs_bits & 4'b0111) | ({3'd0, peripheral_cs} << 3);
-                end
-            end
-            default: begin
-                if (debug_mode) begin
-                    outputs = {1'd0, outputs_bits[2:0]} | {3'd0, debug_cs} << 3;
-                end else begin
-                    outputs = outputs_bits;
-                end
-            end
-        endcase
+    always_comb begin
+        outputs[0] = (uart_flow_control_en) ? uart_request_to_send :
+                        (spi_cs_bits == 4'b0001) ? peripheral_cs : outputs_bits[0];
+
+        outputs[1] = (spi_cs_bits == 4'b0010) ? peripheral_cs : outputs_bits[1];
+        outputs[2] = (spi_cs_bits == 4'b0100) ? peripheral_cs : outputs_bits[2];
+        if (debug_mode) begin
+            outputs[3] = debug_cs;
+        end else begin
+            outputs[3] = (spi_cs_bits == 4'b1000) ? peripheral_cs : outputs_bits[3];
+        end
     end
 
     assign io_direction = io_direction_bits;
