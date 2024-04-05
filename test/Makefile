@@ -12,12 +12,12 @@ INSTALL_COCOTBEXT_SPI := $(shell \
 SIM ?= icarus
 TOPLEVEL_LANG ?= verilog
 SRC_DIR = $(PWD)/../src
-PROJECT_SOURCES = project.v
-PROJECT_SOURCES += spi_controller.v
-PROJECT_SOURCES += mem_bus.v
-PROJECT_SOURCES += registers.v
-PROJECT_SOURCES += alu.v
-PROJECT_SOURCES += uart.v
+PROJECT_SOURCES = project.sv
+PROJECT_SOURCES += spi_controller.sv
+PROJECT_SOURCES += mem_bus.sv
+PROJECT_SOURCES += registers.sv
+PROJECT_SOURCES += alu.sv
+PROJECT_SOURCES += uart.sv
 
 PDK_ROOT = $(OPENLANE_PDK_ROOT)
 
