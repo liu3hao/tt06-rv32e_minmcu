@@ -8,9 +8,9 @@ from cocotbext.spi import SpiBus
 from helpers import SpiFlashPeripheral, ValueWrapper, get_halt_signal, get_io_output_pin, get_output_pin, get_register, load_binary, assert_registers_zero, run_program, set_input_pin
 from cocotbext.uart import UartSink, UartSource
 
-test_cpu = True
-test_peripherals = True
-test_debug = True
+test_cpu =          True
+test_peripherals =  True
+test_debug =        True
 
 if test_cpu:
     from test_cpu import *

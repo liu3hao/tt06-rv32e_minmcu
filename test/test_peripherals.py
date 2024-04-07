@@ -620,3 +620,13 @@ async def test_uart_rx_flow_control (dut):
     assert get_register(dut, 6).value == 4
     assert_registers_zero(dut, 7)
     
+
+@cocotb.test()
+async def test_blinky(dut):
+    # program sets output pins and reads input pins
+
+    bytes = load_binary('binaries/test_blinky.bin')
+    ram_chip, flash_chip = await run_program(dut, memory=bytes)
+    
+    assert dut.out0.value == 1
+    assert dut.out3.value == 1
