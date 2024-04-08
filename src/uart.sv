@@ -23,15 +23,20 @@ module uart (
     localparam STATE_UART_TX_DONE =      5'b01000;
     localparam STATE_UART_RX_AVAILABLE = 5'b10000;
 
-    localparam UART_COUNTER_BAUD_115200 = 217;
+    // localparam UART_COUNTER_BAUD_115200 = 217;  // clock of 50MHz
+    // localparam UART_COUNTER_BAUD_115200 = 208;  // clock of 48MHz
+    // localparam UART_COUNTER_BAUD_115200 = 52;   // clock of 12MHz
+
+    localparam UART_COUNTER_BAUD_9600 =   12'd1250;
+    // localparam UART_COUNTER_BAUD_115200 = 12'd104;
 
     reg [4:0] state;
-    reg [8:0] buffer;
+    reg [9:0] buffer;
 
     reg [3:0] counter;
 
     reg uart_tx_clk;
-    reg [8:0] clk_counter;
+    reg [11:0] clk_counter;
 
     reg uart_sample_clk;
     reg prev_uart_clk;
@@ -55,7 +60,7 @@ module uart (
             prev_uart_clk <= uart_tx_clk;
 
             if (state == STATE_UART_TX || state == STATE_UART_RX) begin
-                if (clk_counter == UART_COUNTER_BAUD_115200) begin
+                if (clk_counter == UART_COUNTER_BAUD_9600) begin
                     uart_tx_clk <= ~uart_tx_clk;
                     clk_counter <= 0;
                 end else begin
@@ -70,7 +75,7 @@ module uart (
 
                    if(start_tx & ~clear_to_send) begin
                         state <= STATE_UART_TX;
-                        buffer <= {tx_value, 1'b0};
+                        buffer <= {1'b1, tx_value, 1'b0}; // Shifted towards bit 0
                     end else if (rx == 0 && rx_clear == 0) begin
                         // Low was detected on the rx and rx_clear bit is set to 0
                         state <= STATE_UART_RX;
@@ -84,7 +89,7 @@ module uart (
                         buffer <= (buffer >> 1);
                         counter <= counter + 1;
 
-                        if (counter == 8) begin
+                        if (counter == 9) begin
                             state <= STATE_UART_TX_DONE;
                         end
                     end
@@ -93,7 +98,7 @@ module uart (
                 STATE_UART_RX: begin
                     // 1 uart period is 434 counts.
                     if ((counter == 0 && prev_uart_clk == 0 && uart_tx_clk == 1) || (counter != 0 && prev_uart_clk == 1 && uart_tx_clk == 0)) begin
-                        buffer <= {rx, 8'd0} | (buffer >> 1);
+                        buffer <= {rx, 9'd0} | (buffer >> 1);
                         counter <= counter + 1;
 
                         if (counter == 8) begin
@@ -109,7 +114,7 @@ module uart (
                 end
 
                 STATE_UART_RX_AVAILABLE: begin
-                    rx_value <= buffer[8:1];
+                    rx_value <= buffer[9:2];
                     if (rx_clear == 1) begin
                         state <= STATE_UART_IDLE;
                     end

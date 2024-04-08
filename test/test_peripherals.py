@@ -5,6 +5,8 @@ from cocotbext.spi import SpiBus
 from helpers import SpiFlashPeripheral, get_halt_signal, get_io_output_pin, get_output_pin, get_register, load_binary, assert_registers_zero, run_program, set_input_pin
 from cocotbext.uart import UartSink, UartSource
 
+baudrate = 9600
+
 @cocotb.test()
 async def test_output_write_read_single(dut):
     # lw x1, 32(x0)
@@ -317,7 +319,7 @@ async def test_program4(dut):
 async def test_uart_tx_single(dut):
 
     async def add_uart_device():
-        uart_sink = UartSink(dut.uart_tx, baud=115200, bits=8)
+        uart_sink = UartSink(dut.uart_tx, baud=baudrate, bits=8)
         await FallingEdge(dut.uart_tx)
         result = await uart_sink.read(1)
         result = [int(val) for val in result][0]
@@ -354,7 +356,7 @@ async def test_uart_tx_single_flow_control(dut):
     dut.ui_in[0].value = 1
 
     async def add_uart_device():
-        uart_sink = UartSink(dut.uart_tx, baud=115200, bits=8)
+        uart_sink = UartSink(dut.uart_tx, baud=baudrate, bits=8)
 
         await RisingEdge(dut.out1)  # wait for signal from program
 
@@ -407,7 +409,7 @@ async def test_uart_tx_single_flow_control(dut):
 async def test_uart_tx_multiple(dut):
 
     async def add_uart_device():
-        uart_sink = UartSink(dut.uart_tx, baud=115200, bits=8)
+        uart_sink = UartSink(dut.uart_tx, baud=baudrate, bits=8)
         
         all_bytes = []
         
@@ -459,7 +461,7 @@ async def test_program5_uart_tx(dut):
     dut.ui_in[7].value = 1  # must set to high initially, otherwise this would trigger uart rx
 
     async def add_uart_device():
-        uart_sink = UartSink(dut.uart_tx, baud=115200, bits=8)
+        uart_sink = UartSink(dut.uart_tx, baud=baudrate, bits=8)
         
         all_bytes = []
         
@@ -482,7 +484,7 @@ async def test_uart_rx_single (dut):
 
     async def add_uart_device():
 
-        uart_sink = UartSource(dut.uart_rx, baud=115200, bits=8)
+        uart_sink = UartSource(dut.uart_rx, baud=baudrate, bits=8)
         await RisingEdge(dut.out0)  # wait to go high first before starting to send
 
         await uart_sink.write([0b10101010])
@@ -516,7 +518,7 @@ async def test_uart_rx_multiple(dut):
 
     async def add_uart_device():
 
-        uart_sink = UartSource(dut.uart_rx, baud=115200, bits=8)
+        uart_sink = UartSource(dut.uart_rx, baud=baudrate, bits=8)
         await RisingEdge(dut.out0)  # wait to go high first before starting to send
 
         await uart_sink.write([0b10101010])
@@ -572,7 +574,7 @@ async def test_uart_rx_flow_control (dut):
 
     async def add_uart_device():
 
-        uart_sink = UartSource(dut.uart_rx, baud=115200, bits=8)
+        uart_sink = UartSource(dut.uart_rx, baud=baudrate, bits=8)
         await RisingEdge(dut.out0)  # wait to go high first before starting to send
 
         await uart_sink.write([0b10101010])

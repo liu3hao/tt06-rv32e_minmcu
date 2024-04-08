@@ -1,25 +1,3 @@
-# Project setup
-PROJ      = tt06-rv32e
-BUILD     = ./build
-DEVICE    = 8k
-FOOTPRINT = ct256
-TOP = tt_um_rv32e_cpu
-CWD = $(pwd)
-
-# Files
-FILES = src/project.v src/mem_external.v src/mem_bus.v src/registers.v src/alu.v
-
-.PHONY: all clean burn timing
-
-burn: $(BUILD)/$(PROJ).bin
-	iceprog $(BUILD)/$(PROJ).bin
-
-timing: $(BUILD)/$(PROJ).asc
-	icetime -tmd hx$(DEVICE) $(BUILD)/$(PROJ).asc
-
-clean:
-	rm build/*
-
 create-user-config:
 	python tt/tt_tool.py --create-user-config
 
@@ -36,8 +14,8 @@ synth:
 	sed -n '/71. Printing statistics./,/Chip area for module/p' runs/wokwi_syn/logs/synthesis/1-synthesis.log
 	sed -n '/71. Printing statistics./,/Number of cells:/p' runs/wokwi_syn/logs/synthesis/1-synthesis.log
 
-interactive:
-	docker run --rm -it -v $(OPENLANE_ROOT):/openlane -v $(OPENLANE_PDK_ROOT):$(OPENLANE_PDK_ROOT) -v ${CURDIR}:/work -e PDK=sky130A -e PDK_ROOT=$(OPENLANE_PDK_ROOT) efabless/openlane:2023.11.23 /bin/bash -c "./flow.tcl -interactive"
+# interactive:
+# 	docker run --rm -it -v $(OPENLANE_ROOT):/openlane -v $(OPENLANE_PDK_ROOT):$(OPENLANE_PDK_ROOT) -v ${CURDIR}:/work -e PDK=sky130A -e PDK_ROOT=$(OPENLANE_PDK_ROOT) efabless/openlane:2023.11.23 /bin/bash -c "./flow.tcl -interactive"
 
 yosys_dump:
 	yosys -p "read_verilog -sv src/$(file)" \
@@ -55,12 +33,3 @@ cpu_imm:
 
 hierarchy:
 	xdot $(PWD)/runs/wokwi_syn/tmp/synthesis/hierarchy.dot
-
-
-# prep -design /work/src -run_path /work/runs -tag wokwi -overwrite
-# run_synthesis
-
-
-# flow:
-# 	python tt/tt_tool.py --create-user-config
-# 	docker run --rm -v $(OPENLANE_ROOT):/openlane -v $(OPENLANE_PDK_ROOT):$(OPENLANE_PDK_ROOT) -v ${CURDIR}:/work -e PDK=sky130A -e PDK_ROOT=$(OPENLANE_PDK_ROOT) efabless/openlane:2023.11.23 /bin/bash -c "./flow.tcl -overwrite -design /work/src -run_path /work/runs -tag wokwi_1"

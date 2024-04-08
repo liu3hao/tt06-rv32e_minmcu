@@ -12,7 +12,7 @@ class SpiFlashPeripheral(SpiSlaveBase):
     def __init__(self, bus, contents, dut, name):
         self._config = SpiConfig(
             data_output_idle=0,
-            sclk_freq=50e6,
+            sclk_freq=24e6,
             word_width=8,
             msb_first=True,
             cpol=0,
@@ -168,7 +168,7 @@ def load_binary(path):
         output.append(b)
     return output
 
-async def run_program(dut, raw='', memory=None, wait_cycles=100, extra_func=None, timeout_us = 1000):
+async def run_program(dut, raw='', memory=None, wait_cycles=100, extra_func=None, timeout_us = 3000):
     # dut._log.info("Run program")
 
     if raw != '':
@@ -197,7 +197,7 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100, extra_func=None
                                                  cs_name='cs2'), ram_bytes, 
                                                  dut, name='ram')
     
-    clock = Clock(dut.clk, 20, units="ns")
+    clock = Clock(dut.clk, 41.66, units="ns") # 24MHz
     cocotb.start_soon(clock.start())
 
     # Timeout to ensure test does not run too long and generate a very large vcd
