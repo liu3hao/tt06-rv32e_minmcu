@@ -1,3 +1,4 @@
+import os
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import ClockCycles, RisingEdge, FallingEdge, Timer
@@ -205,7 +206,7 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100, extra_func=None
     halted_signal = RisingEdge(get_halt_signal(dut))
 
     # Reset
-    # dut._log.info("Reset")
+    dut._log.info("Reset")
     dut.ena.value = 1
     dut.rst_n.value = 0
 
@@ -229,6 +230,10 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100, extra_func=None
 def get_register(dut, index):
 
     gate_level_tests = False
+
+    if 'GATES' in os.environ and os.environ['GATES'] == 'yes':
+        gate_level_tests = True
+
     main_cpu = dut.cpu1
 
     if gate_level_tests:

@@ -12,9 +12,9 @@ module tb ();
         $dumpfile("tb.vcd");
         $dumpvars(0, tb);
 
-        for (i = 0; i < 16; i = i + 1) begin
-            $dumpvars(0, cpu1.reg1.registers[i]);
-        end
+        // for (i = 0; i < 16; i = i + 1) begin
+        //     $dumpvars(0, cpu1.reg1.registers[i]);
+        // end
         #1;
     end
 
@@ -52,6 +52,13 @@ module tb ();
     always_comb begin
         ui_in[2] = miso;
         ui_in[7] = uart_rx;
+    end
+
+    initial begin
+        uart_rx = 1;
+
+        // Set debug mode to low, so NOT in debug mode
+        ui_in = 8'b10111111;
     end
 
     // Replace tt_um_example with your module name:

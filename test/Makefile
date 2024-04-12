@@ -19,8 +19,6 @@ PROJECT_SOURCES += registers.sv
 PROJECT_SOURCES += alu.sv
 PROJECT_SOURCES += uart.sv
 
-PDK_ROOT = $(OPENLANE_PDK_ROOT)
-
 ifneq ($(GATES),yes)
 
 # RTL simulation:

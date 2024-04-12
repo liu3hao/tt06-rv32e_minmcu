@@ -18,7 +18,6 @@ if test_cpu:
 if test_peripherals:
     from test_peripherals import *
 
-
 if test_debug:
     @cocotb.test()
     async def test_debug_mode(dut):

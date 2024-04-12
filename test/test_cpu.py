@@ -11,6 +11,8 @@ async def test_addi_add_shift_reg_check(dut):
     # addi x4, x1, 20
     # addi x2, x4, 10
 
+    dut.ui_in[6].value = 0
+
     await run_program(dut, '''
         8BF00093
         01408213

@@ -1,0 +1,5 @@
+pytest==8.1.1
+cocotb==1.8.1
+cocotb-bus==0.2.1
+cocotbext-spi==0.4.0
+cocotbext-uart==0.1.2
