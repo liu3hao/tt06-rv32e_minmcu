@@ -28,7 +28,7 @@ module spi_controller # (
 
     // Limit to 3 address bytes, and 1 extra byte for whether it is
     // flash or RAM access.
-    input  wire [address_size-1:0] target_address,
+    input  wire [address_size-3:0] target_address,
     output wire [31:0] fetched_value,
 
     input wire is_write,

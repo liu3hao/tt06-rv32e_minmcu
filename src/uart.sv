@@ -10,6 +10,8 @@ module uart (
     output reg [7:0] rx_value,
     input wire rx_clear,
 
+    input wire [11:0] uart_counter_end,
+
     input wire clear_to_send,
     output wire request_to_send,
 
@@ -27,7 +29,7 @@ module uart (
     // localparam UART_COUNTER_BAUD_115200 = 208;  // clock of 48MHz
     // localparam UART_COUNTER_BAUD_115200 = 52;   // clock of 12MHz
 
-    localparam UART_COUNTER_BAUD_9600 =   12'd1250;
+    // localparam UART_COUNTER_BAUD_9600 =   12'd1250;
     // localparam UART_COUNTER_BAUD_115200 = 12'd104;
 
     reg [4:0] state;
@@ -37,8 +39,6 @@ module uart (
 
     reg uart_tx_clk;
     reg [11:0] clk_counter;
-
-    reg uart_sample_clk;
     reg prev_uart_clk;
 
     always @ (posedge clk) begin
@@ -48,7 +48,6 @@ module uart (
             counter <= 0;
 
             prev_uart_clk <= 0;
-            uart_sample_clk <= 0;
 
             uart_tx_clk <= 1;
             clk_counter <= 0;
@@ -60,7 +59,7 @@ module uart (
             prev_uart_clk <= uart_tx_clk;
 
             if (state == STATE_UART_TX || state == STATE_UART_RX) begin
-                if (clk_counter == UART_COUNTER_BAUD_9600) begin
+                if (clk_counter == uart_counter_end) begin
                     uart_tx_clk <= ~uart_tx_clk;
                     clk_counter <= 0;
                 end else begin

@@ -72,6 +72,8 @@ module mem_bus #(
     reg uart_request_to_send;
     reg uart_clear_to_send;
 
+    reg [11:0] uart_counter_end;
+
     spi_controller #(.address_size(address_size)) spi_controller1 (
         .miso(miso),
         .sclk(sclk),
@@ -84,7 +86,7 @@ module mem_bus #(
         .is_peripheral(is_spi_peripheral),
         .peripheral_tx_bytes(spi_peripheral_tx_bytes),
 
-        .target_address(target_address),
+        .target_address(target_address[15:0]),
         .fetched_value (mem_fetched_value),
 
         .is_write(is_write),
@@ -110,6 +112,8 @@ module mem_bus #(
 
         .clear_to_send(~uart_flow_control_en ? 1'd0 : uart_clear_to_send),
         .request_to_send(uart_request_to_send),
+
+        .uart_counter_end(uart_counter_end),
 
         .rst_n(rst_n),
         .clk(clk)
@@ -154,6 +158,8 @@ module mem_bus #(
             uart_flow_control_en <= 0; // default is no flow control
             uart_clear_to_send <= 1;
 
+            uart_counter_end <= 12'd1250; // 9600 baud at 24MHz sys clock
+
         end else begin
             if (start_request) begin
 
@@ -182,7 +188,8 @@ module mem_bus #(
                                     uart_flow_control_en <= write_value[2];
 
                                 end
-                                8'h14: uart_tx_byte <= write_value[7:0];
+                                8'h14: uart_tx_byte     <= write_value[7:0];
+                                8'h16: uart_counter_end <= write_value[11:0];
                                 default: ;
                             endcase
                         end else begin
@@ -199,6 +206,8 @@ module mem_bus #(
                                 8'h11: io_value <= {6'd0, uart_rx_available, uart_status_bits_hold};
                                 8'h14: io_value <= uart_tx_byte;
                                 8'h15: io_value <= uart_rx_byte;
+                                8'h16: io_value <= uart_counter_end[7:0];
+                                8'h17: io_value <= {4'd0, uart_counter_end[11:8]};
                                 default: ;
                             endcase
                         end
@@ -237,7 +246,7 @@ module mem_bus #(
             input_bits <= inputs;
             io_inputs_bits <= ~io_direction_bits & io_inputs;
 
-            uart_clear_to_send <= uart_flow_control_en ? inputs[0] : 0;
+            uart_clear_to_send <= uart_flow_control_en ? inputs[0] : 1'd0;
         end
 
         if (uart_start_tx & uart_tx_done) begin
