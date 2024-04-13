@@ -17,7 +17,7 @@ localparam J_TYPE_INSTR =       7'h6F;  // JAL
 
 localparam reg_counter_end =    4'd15;
 
-module tt_um_rv32e_cpu # (
+module tt_um_liu3hao_rv32e_min_mcu # (
         parameter address_size = 16+2
     )(
     input  wire [7:0] ui_in,    // Dedicated inputs
@@ -32,10 +32,7 @@ module tt_um_rv32e_cpu # (
     input  wire       rst_n     // reset_n - low to reset
 );
 
-    // Not used yet.
-    // assign uio_oe = 8'b00000001;
-    assign uio_oe[2:0] = 0;
-    assign uio_out[2:1] = 0;
+    assign uio_oe[0] = 1;       // SPI-CS2
 
     localparam STATE_FETCH_INSTRUCTION =    5'b00001;
     localparam STATE_READ_REGISTERS    =    5'b00010;
@@ -95,9 +92,9 @@ module tt_um_rv32e_cpu # (
         .inputs({ui_in[5:3], ui_in[1:0]}),      // input only pins
         .outputs({uo_out[7:6], uo_out[2:1]}),   // output only pins
 
-        .io_direction(uio_oe[7:3]),             // direction for io pins
-        .io_outputs(uio_out[7:3]),              // io pins output
-        .io_inputs(uio_in[7:3]),                // io pins input
+        .io_direction(uio_oe[7:1]),             // direction for io pins
+        .io_outputs(uio_out[7:1]),              // io pins output
+        .io_inputs(uio_in[7:1]),                // io pins input
 
         .uart_tx(uo_out[0]),                    // uart output pin
         .uart_rx(ui_in[7]),                     // uart input pin

@@ -99,54 +99,57 @@ async def test_read_input_pins(dut):
 
 @cocotb.test()
 async def test_io_pins(dut):
-    # lw x1, 32(x0)
-    # addi x2, x2, 24
-    # lb x3, 3(x1)
-    # sb x2, 2(x1)
-    # addi x2, x0, 18
-    # sb x2, 4(x1)
-    # sb x4, 3(x1)
-
+    dut.uio_in[1].value = 1
+    dut.uio_in[2].value = 0
     dut.uio_in[3].value = 1
     dut.uio_in[4].value = 0
-    dut.uio_in[5].value = 0
+    dut.uio_in[5].value = 1
     dut.uio_in[6].value = 1
     dut.uio_in[7].value = 1
 
     async def connect_pins():
         # when there is a high detected on this pin, then set input pins
-        await RisingEdge(dut.io_out4)
+        await RisingEdge(dut.io_out6)
 
         # set the inputs, however, since the io bits are still outputs
         # so there should be no change
+        dut.uio_in[1].value = 1
+        dut.uio_in[2].value = 1
         dut.uio_in[3].value = 0
-        dut.uio_in[4].value = 1
-        dut.uio_in[6].value = 0
+        dut.uio_in[4].value = 0
+        dut.uio_in[5].value = 0
+        dut.uio_in[6].value = 1
+        dut.uio_in[7].value = 1
         pass
 
     ram_chip, flash = await run_program(dut, '''
-0x00000000	|	0x02002083	|	lw x1, 32(x0)
-0x00000004	|	0x01800113	|	addi x2, x0, 24
-0x00000008	|	0x00308183	|	lb x3, 3(x1)
-0x0000000C	|	0x00208123	|	sb x2, 2(x1)
-0x00000010	|	0x01200113	|	addi x2, x0, 18
-0x00000014	|	0x00208223	|	sb x2, 4(x1)
-0x00000018	|	0x00308203	|	lb x4, 3(x1)
-        0000006f
-        00020000
+ 0x00000000	|	0x0200A083	|	lw x1, peripherals
+ 0x00000004	|	0x07000113	|	addi x2, x0, 112
+ 0x00000008	|	0x00308183	|	lb x3, 3(x1)
+ 0x0000000C	|	0x00208123	|	sb x2, 2(x1)
+ 0x00000010	|	0x06200113	|	addi x2, x0, 98
+ 0x00000014	|	0x00208223	|	sb x2, 4(x1)
+ 0x00000018	|	0x00308203	|	lb x4, 3(x1)
+ 0x0000001C	|	0x0000006F	|	jal x0, 0
+-------------------------------------------------------------------------
+ Data Dump
+-------------------------------------------------------------------------
+ 0x00000024	|	0x00020000
         ''', extra_func=connect_pins)
     
     assert get_register(dut, 1).value == 0x20000
-    assert get_register(dut, 2).value == 18
-    assert get_register(dut, 3).value == 0x19
-    assert get_register(dut, 4).value == 2
+    assert get_register(dut, 2).value == 98
+    assert get_register(dut, 3).value == 0b1110101
+    assert get_register(dut, 4).value == 0b0000011
     assert assert_registers_zero(dut, 5)
 
     assert get_io_output_pin(dut, 0) == 0
     assert get_io_output_pin(dut, 1) == 0
     assert get_io_output_pin(dut, 2) == 0
     assert get_io_output_pin(dut, 3) == 0
-    assert get_io_output_pin(dut, 4) == 1
+    assert get_io_output_pin(dut, 4) == 0
+    assert get_io_output_pin(dut, 5) == 1
+    assert get_io_output_pin(dut, 6) == 1
 
 @cocotb.test()
 async def test_spi_peripherals(dut):
@@ -272,7 +275,7 @@ async def test_program3(dut):
 
 @cocotb.test()
 async def test_program4(dut):
-    # program sets output pins and reads input pins
+    # program sets io pins as inputs/outputs
 
     bytes = load_binary('binaries/test_io_pins.bin')
     dut.ui_in.value = 0     # initialize inputs to some value, other tests fails
@@ -295,16 +298,16 @@ async def test_program4(dut):
         assert get_io_output_pin(dut, 2).value == 0
         assert get_io_output_pin(dut, 3).value == 0
         assert get_io_output_pin(dut, 4).value == 1
+        assert get_io_output_pin(dut, 5).value == 0
+        assert get_io_output_pin(dut, 6).value == 1
 
-        dut.uio_in.value = 0b10101000
+        dut.uio_in.value = 0b10101110                             
 
         tmp_sig = await First(halted_signal, out0_rising, out0_falling)
         assert tmp_sig == out0_falling
 
     ram_chip, flash_chip = await run_program(dut, memory=bytes, 
                                             extra_func=detect_edges)
-
-    # ram_chip.dump_memory2()
 
     # return value is the result of the input pins register
     assert get_register(dut, 10).value == 4
@@ -313,7 +316,9 @@ async def test_program4(dut):
     assert get_io_output_pin(dut, 1).value == 0
     assert get_io_output_pin(dut, 2).value == 0
     assert get_io_output_pin(dut, 3).value == 0
-    assert get_io_output_pin(dut, 3).value == 0
+    assert get_io_output_pin(dut, 4).value == 0
+    assert get_io_output_pin(dut, 5).value == 0
+    assert get_io_output_pin(dut, 6).value == 0
 
 @cocotb.test()
 async def test_uart_tx_single(dut):

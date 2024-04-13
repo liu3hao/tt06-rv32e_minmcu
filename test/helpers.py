@@ -297,6 +297,10 @@ def get_io_output_pin(dut, index):
         return dut.io_out3
     elif index == 4:
         return dut.io_out4
+    elif index == 5:
+        return dut.io_out5
+    elif index == 6:
+        return dut.io_out6
     
 def get_halt_signal(dut):
     return dut.cpu1.halted

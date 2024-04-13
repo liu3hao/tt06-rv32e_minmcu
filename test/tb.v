@@ -42,11 +42,13 @@ module tb ();
     wire uart_tx = uo_out[0]; // uart output
     reg uart_rx;
 
-    wire io_out0 = uio_out[3];
-    wire io_out1 = uio_out[4];
-    wire io_out2 = uio_out[5];
-    wire io_out3 = uio_out[6];
-    wire io_out4 = uio_out[7];
+    wire io_out0 = uio_out[1];
+    wire io_out1 = uio_out[2];
+    wire io_out2 = uio_out[3];
+    wire io_out3 = uio_out[4];
+    wire io_out4 = uio_out[5];
+    wire io_out5 = uio_out[6];
+    wire io_out6 = uio_out[7];
 
     reg miso;
     always_comb begin
@@ -62,7 +64,7 @@ module tb ();
     end
 
     // Replace tt_um_example with your module name:
-    tt_um_rv32e_cpu cpu1 (
+    tt_um_liu3hao_rv32e_min_mcu cpu1 (
 
         // Include power ports for the Gate Level test:
 `ifdef GL_TEST
