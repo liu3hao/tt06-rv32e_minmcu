@@ -7,10 +7,10 @@ module uart (
 
     output wire rx_available,
     input wire rx,
-    output reg [7:0] rx_value,
+    output wire [7:0] rx_value,
     input wire rx_clear,
 
-    input wire [11:0] uart_counter_end,
+    input wire [11:0] uart_baud_counter,
 
     input wire clear_to_send,
     output wire request_to_send,
@@ -18,117 +18,130 @@ module uart (
     input wire rst_n,
     input wire clk
 );
+    localparam STATE_IDLE =     3'b001;
+    localparam STATE_ACTIVE =   3'b010;
+    localparam STATE_DONE =     3'b100;
 
-    localparam STATE_UART_IDLE =         5'b00001;
-    localparam STATE_UART_TX =           5'b00010;
-    localparam STATE_UART_RX =           5'b00100;
-    localparam STATE_UART_TX_DONE =      5'b01000;
-    localparam STATE_UART_RX_AVAILABLE = 5'b10000;
+    reg [2:0] rx_state;
+    reg [2:0] tx_state;
 
-    // localparam UART_COUNTER_BAUD_115200 = 217;  // clock of 50MHz
-    // localparam UART_COUNTER_BAUD_115200 = 208;  // clock of 48MHz
-    // localparam UART_COUNTER_BAUD_115200 = 52;   // clock of 12MHz
+    reg [9:0] tx_buffer;
+    reg [8:0] rx_buffer;
 
-    // localparam UART_COUNTER_BAUD_9600 =   12'd1250;
-    // localparam UART_COUNTER_BAUD_115200 = 12'd104;
+    reg [3:0] tx_bit_counter;
+    reg [3:0] rx_bit_counter;
 
-    reg [4:0] state;
-    reg [9:0] buffer;
+    reg tx_uart_clk;
+    reg rx_uart_clk;
 
-    reg [3:0] counter;
+    reg [11:0] tx_clk_counter;
+    reg [11:0] rx_clk_counter;
 
-    reg uart_tx_clk;
-    reg [11:0] clk_counter;
-    reg prev_uart_clk;
+    reg tx_prev_uart_clk;
+    reg rx_prev_uart_clk;
 
     always @ (posedge clk) begin
         if (rst_n == 0) begin
-            state <= STATE_UART_IDLE;
-            buffer <= 0;
-            counter <= 0;
+            tx_state <= STATE_IDLE;
+            rx_state <= STATE_IDLE;
 
-            prev_uart_clk <= 0;
+            tx_bit_counter <= 0;
+            rx_bit_counter <= 0;
 
-            uart_tx_clk <= 1;
-            clk_counter <= 0;
+            tx_prev_uart_clk <= 0;
+            rx_prev_uart_clk <= 0;
 
-            rx_value <= 0;
+            tx_clk_counter <= 0;
+            rx_clk_counter <= 0;
+
+            tx_buffer <= 0;
+            rx_buffer <= 0;
+
+            tx_uart_clk <= 1;
+            rx_uart_clk <= 1;
 
         end else begin
 
-            prev_uart_clk <= uart_tx_clk;
+            tx_prev_uart_clk <= tx_uart_clk;
+            rx_prev_uart_clk <= rx_uart_clk;
 
-            if (state == STATE_UART_TX || state == STATE_UART_RX) begin
-                if (clk_counter == uart_counter_end) begin
-                    uart_tx_clk <= ~uart_tx_clk;
-                    clk_counter <= 0;
-                end else begin
-                    clk_counter <= clk_counter + 1;
-                end
-            end
-
-            case(state)
-                STATE_UART_IDLE: begin
-                    counter <= 0;
-                    uart_tx_clk <= 0;
-
-                   if(start_tx & ~clear_to_send) begin
-                        state <= STATE_UART_TX;
-                        buffer <= {1'b1, tx_value, 1'b0}; // Shifted towards bit 0
-                    end else if (rx == 0 && rx_clear == 0) begin
-                        // Low was detected on the rx and rx_clear bit is set to 0
-                        state <= STATE_UART_RX;
+            case (tx_state)
+                STATE_IDLE: begin
+                    if (start_tx && ~clear_to_send) begin
+                        tx_state <= STATE_ACTIVE;
+                        tx_buffer <= {1'b1, tx_value, 1'b0}; // Shifted towards bit 0
+                        tx_bit_counter <= 0;
+                        tx_uart_clk <= 0;
                     end
                 end
-                STATE_UART_TX: begin
-                    // Baud rate = 115200, which is about a counter value of 434 per period.
+                STATE_ACTIVE: begin
+                    if (tx_clk_counter == uart_baud_counter) begin
+                        tx_uart_clk <= ~tx_uart_clk;
+                        tx_clk_counter <= 0;
+                    end else begin
+                        tx_clk_counter <= tx_clk_counter + 1;
+                    end
 
                     // Only when there is change of the uart clk state, going from low to high
-                    if (prev_uart_clk == 0 && uart_tx_clk == 1) begin
-                        buffer <= (buffer >> 1);
-                        counter <= counter + 1;
+                    if (tx_prev_uart_clk == 0 && tx_uart_clk == 1) begin
+                        tx_buffer <= (tx_buffer >> 1);
+                        tx_bit_counter <= tx_bit_counter + 1;
 
-                        if (counter == 9) begin
-                            state <= STATE_UART_TX_DONE;
+                        if (tx_bit_counter == 9) begin
+                            tx_state <= STATE_DONE;
                         end
                     end
                 end
-
-                STATE_UART_RX: begin
-                    // 1 uart period is 434 counts.
-                    if ((counter == 0 && prev_uart_clk == 0 && uart_tx_clk == 1) || (counter != 0 && prev_uart_clk == 1 && uart_tx_clk == 0)) begin
-                        buffer <= {rx, 9'd0} | (buffer >> 1);
-                        counter <= counter + 1;
-
-                        if (counter == 8) begin
-                            state <= STATE_UART_RX_AVAILABLE;
-                        end
-                    end
-                end
-
-                STATE_UART_TX_DONE: begin
+                STATE_DONE: begin
                     if (start_tx == 0) begin
-                        state <= STATE_UART_IDLE;
+                        tx_state <= STATE_IDLE;
                     end
                 end
+                default:;
+            endcase
 
-                STATE_UART_RX_AVAILABLE: begin
-                    rx_value <= buffer[9:2];
+            case (rx_state)
+                STATE_IDLE: begin
+                    if (rx == 0 && rx_clear == 0) begin
+                        rx_state <= STATE_ACTIVE;
+                        rx_bit_counter <= 0;
+                        rx_uart_clk <= 0;
+                    end
+                end
+                STATE_ACTIVE : begin
+                    if (rx_clk_counter == uart_baud_counter) begin
+                        rx_uart_clk <= ~rx_uart_clk;
+                        rx_clk_counter <= 0;
+                    end else begin
+                        rx_clk_counter <= rx_clk_counter + 1;
+                    end
+
+                    if ((rx_bit_counter == 0 && rx_prev_uart_clk == 0 && rx_uart_clk == 1) || (rx_bit_counter != 0 && rx_prev_uart_clk == 1 && rx_uart_clk == 0)) begin
+                        rx_buffer <= {rx, 8'd0} | (rx_buffer >> 1);
+                        rx_bit_counter <= rx_bit_counter + 1;
+
+                        if (rx_bit_counter == 9) begin
+                            rx_state <= STATE_DONE;
+                        end
+                    end
+                end
+                STATE_DONE: begin
                     if (rx_clear == 1) begin
-                        state <= STATE_UART_IDLE;
+                        rx_state <= STATE_IDLE;
                     end
                 end
-
                 default: ;
             endcase
         end
     end
 
-    assign tx = (state == STATE_UART_TX) ? buffer[0] : 1;
-    assign tx_done = (state == STATE_UART_TX_DONE);
-    assign rx_available = (state == STATE_UART_RX_AVAILABLE);
+    assign tx =             (tx_state == STATE_ACTIVE) ? tx_buffer[0] : 1;
+    assign tx_done =        (tx_state == STATE_DONE);
+
+    assign rx_value =       rx_buffer[7:0];
+    assign rx_available =   (rx_state == STATE_DONE);
 
     // Set req to send to high, only if in idle and there is no rx available
-    assign request_to_send = (state == STATE_UART_IDLE | state == STATE_UART_RX) & ~rx_available;
+    assign request_to_send = rx_available;
 
 endmodule

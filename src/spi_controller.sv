@@ -3,10 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-localparam STATE_IDLE =                     3'b001;
-localparam STATE_RUN_TRANSACTION =          3'b010;
-localparam STATE_TRANSACTION_DONE =         3'b100;
-
 localparam SPI_TX_BUFFER_SIZE = 64;
 localparam SPI_RX_BUFFER_SIZE = 32;
 
@@ -39,6 +35,10 @@ module spi_controller # (
 
     input wire clk                // system clock
 );
+
+    localparam STATE_IDLE =                     3'b001;
+    localparam STATE_RUN_TRANSACTION =          3'b010;
+    localparam STATE_TRANSACTION_DONE =         3'b100;
 
     reg [2:0] state;      // module state
 
