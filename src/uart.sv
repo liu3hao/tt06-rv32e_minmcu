@@ -61,10 +61,6 @@ module uart (
             rx_uart_clk <= 1;
 
         end else begin
-
-            tx_prev_uart_clk <= tx_uart_clk;
-            rx_prev_uart_clk <= rx_uart_clk;
-
             case (tx_state)
                 STATE_IDLE: begin
                     if (start_tx && ~clear_to_send) begin
@@ -72,9 +68,12 @@ module uart (
                         tx_buffer <= {1'b1, tx_value, 1'b0}; // Shifted towards bit 0
                         tx_bit_counter <= 0;
                         tx_uart_clk <= 0;
+                        tx_prev_uart_clk <= 0;
                     end
                 end
                 STATE_ACTIVE: begin
+                    tx_prev_uart_clk <= tx_uart_clk;
+
                     if (tx_clk_counter == uart_baud_counter) begin
                         tx_uart_clk <= ~tx_uart_clk;
                         tx_clk_counter <= 0;
@@ -106,9 +105,12 @@ module uart (
                         rx_state <= STATE_ACTIVE;
                         rx_bit_counter <= 0;
                         rx_uart_clk <= 0;
+                        rx_prev_uart_clk <= 0;
                     end
                 end
                 STATE_ACTIVE : begin
+                    rx_prev_uart_clk <= rx_uart_clk;
+
                     if (rx_clk_counter == uart_baud_counter) begin
                         rx_uart_clk <= ~rx_uart_clk;
                         rx_clk_counter <= 0;
@@ -116,7 +118,7 @@ module uart (
                         rx_clk_counter <= rx_clk_counter + 1;
                     end
 
-                    if ((rx_bit_counter == 0 && rx_prev_uart_clk == 0 && rx_uart_clk == 1) || (rx_bit_counter != 0 && rx_prev_uart_clk == 1 && rx_uart_clk == 0)) begin
+                    if (rx_prev_uart_clk == 0 && rx_uart_clk == 1) begin
                         rx_buffer <= {rx, 8'd0} | (rx_buffer >> 1);
                         rx_bit_counter <= rx_bit_counter + 1;
 
