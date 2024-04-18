@@ -58,9 +58,10 @@ module tb ();
 
     initial begin
         uart_rx = 1;
-
+        
         // Set debug mode to low, so NOT in debug mode
-        ui_in = 8'b10111111;
+        ui_in[1:0] = 2'b11;
+        ui_in[6:3] = 4'b1111;
     end
 
     // Replace tt_um_example with your module name:

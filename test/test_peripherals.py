@@ -410,7 +410,6 @@ async def test_uart_tx_single_flow_control(dut):
         result = [int(val) for val in result][0]
 
         assert result == 202
-        print('reached here')
 
     await run_program(dut, '''
  0x00000000	|	0x03C0A083	|	lw x1, peripherals

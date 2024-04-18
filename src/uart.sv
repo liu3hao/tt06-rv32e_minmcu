@@ -57,15 +57,15 @@ module uart (
             tx_prev_uart_clk <= 0;
             rx_prev_uart_clk <= 0;
 
+            tx_uart_clk <= 0;
+            rx_uart_clk <= 0;
+
             tx_clk_counter <= 0;
             rx_clk_counter <= 0;
 
             tx_buffer <= 0;
             rx_buffer <= 0;
-
-            tx_uart_clk <= 1;
-            rx_uart_clk <= 1;
-
+            
         end else begin
             case (tx_state)
                 STATE_IDLE: begin

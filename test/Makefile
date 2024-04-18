@@ -41,6 +41,8 @@ VERILOG_SOURCES += $(PDK_ROOT)/sky130A/libs.ref/sky130_fd_sc_hd/verilog/sky130_f
 # this gets copied in by the GDS action workflow
 VERILOG_SOURCES += $(PWD)/gate_level_netlist.v
 
+# PDK_ROOT = $(OPENLANE_PDK_ROOT)
+
 endif
 
 # Include the testbench sources:
