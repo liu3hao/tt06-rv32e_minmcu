@@ -73,7 +73,7 @@ module mem_bus #(
     reg uart_rx_clear;
     reg uart_flow_control_en;
     reg uart_request_to_send;
-    reg uart_clear_to_send;
+    wire uart_clear_to_send = uart_flow_control_en ? inputs[0] : 1'd0;
 
     reg [11:0] uart_baud_counter;
 
@@ -113,7 +113,7 @@ module mem_bus #(
         .rx_clear(uart_rx_clear),
         .rx(uart_rx),
 
-        .clear_to_send(~uart_flow_control_en ? 1'd0 : uart_clear_to_send),
+        .clear_to_send(uart_clear_to_send),
         .request_to_send(uart_request_to_send),
 
         .uart_baud_counter(uart_baud_counter),
@@ -161,8 +161,6 @@ module mem_bus #(
 
             state <= STATE_PARSE;
             uart_flow_control_en <= 0; // default is no flow control
-            uart_clear_to_send <= 1;
-
             uart_baud_counter <= 12'd1249; // 9600 baud at 24MHz sys clock
 
         end else begin
@@ -250,8 +248,6 @@ module mem_bus #(
             // always update the input bits
             input_bits <= inputs;
             io_inputs_bits <= ~io_direction_bits & io_inputs;
-
-            uart_clear_to_send <= uart_flow_control_en ? inputs[0] : 1'd0;
         end
 
         if (uart_start_tx & uart_tx_done) begin
