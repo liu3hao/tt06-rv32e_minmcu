@@ -15,6 +15,9 @@ module uart (
     input wire clear_to_send,
     output wire request_to_send,
 
+    // output wire tmp_rx_uart_clk,
+    // output wire tmp_tx_uart_clk,
+
     input wire rst_n,
     input wire clk
 );
@@ -39,6 +42,9 @@ module uart (
 
     reg tx_prev_uart_clk;
     reg rx_prev_uart_clk;
+
+    // assign tmp_tx_uart_clk = tx_uart_clk;
+    // assign tmp_rx_uart_clk = rx_uart_clk;
 
     always @ (posedge clk) begin
         if (rst_n == 0) begin
@@ -82,7 +88,7 @@ module uart (
                     end
 
                     // Only when there is change of the uart clk state, going from low to high
-                    if (tx_prev_uart_clk == 0 && tx_uart_clk == 1) begin
+                    if (tx_prev_uart_clk == 1 && tx_uart_clk == 0) begin
                         tx_buffer <= (tx_buffer >> 1);
                         tx_bit_counter <= tx_bit_counter + 1;
 

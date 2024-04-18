@@ -23,6 +23,9 @@ module mem_bus #(
     output wire uart_tx,
     input wire uart_rx,
 
+    // output wire tmp_tx_uart_clk,
+    // output wire tmp_rx_uart_clk,
+
     // Limit to 3 address bytes, and 1 extra byte for whether it is
     // flash or RAM access.
     input  wire [address_size-1:0] target_address,
@@ -114,6 +117,8 @@ module mem_bus #(
         .request_to_send(uart_request_to_send),
 
         .uart_baud_counter(uart_baud_counter),
+        // .tmp_tx_uart_clk(tmp_tx_uart_clk),
+        // .tmp_rx_uart_clk(tmp_rx_uart_clk),
 
         .rst_n(rst_n),
         .clk(clk)
@@ -158,7 +163,7 @@ module mem_bus #(
             uart_flow_control_en <= 0; // default is no flow control
             uart_clear_to_send <= 1;
 
-            uart_baud_counter <= 12'd1250; // 9600 baud at 24MHz sys clock
+            uart_baud_counter <= 12'd1249; // 9600 baud at 24MHz sys clock
 
         end else begin
             if (start_request) begin

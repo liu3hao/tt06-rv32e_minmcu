@@ -27,6 +27,9 @@ module tt_um_liu3hao_rv32e_min_mcu # (
     output wire [7:0] uio_out,  // IOs: Output path
     output wire [7:0] uio_oe,   // IOs: Enable path (active high: 0=input, 1=output)
 
+    // output wire tmp_tx_uart_clk,
+    // output wire tmp_rx_uart_clk,
+
     input  wire       ena,      // will go high when the design is enabled
     input  wire       clk,      // clock
     input  wire       rst_n     // reset_n - low to reset
@@ -113,6 +116,9 @@ module tt_um_liu3hao_rv32e_min_mcu # (
 
         .start_request(mem_start_request),
         .request_done(mem_request_done),
+
+        // .tmp_tx_uart_clk(tmp_tx_uart_clk),
+        // .tmp_rx_uart_clk(tmp_rx_uart_clk),
 
         .clk(clk),
         .rst_n(rst_n)
