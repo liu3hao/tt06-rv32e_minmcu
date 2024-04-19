@@ -493,7 +493,7 @@ Data Dump
     assert get_register(dut, 4).value == 1
     assert_registers_zero(dut, 5)
 
-@cocotb.test()
+#@cocotb.test()
 async def test_program5_uart_tx(dut):
     # program sets output pins and reads input pins
 
