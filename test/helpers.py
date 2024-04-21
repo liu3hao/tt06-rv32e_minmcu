@@ -9,6 +9,14 @@ from cocotb.triggers import FallingEdge, RisingEdge, First
 from cocotbext.spi import SpiSlaveBase, SpiConfig
 from cocotbext.uart import UartSink
 
+def is_gate_level_tests():
+    gate_level_tests = False
+
+    if 'GATES' in os.environ and os.environ['GATES'] == 'yes':
+        gate_level_tests = True
+
+    return gate_level_tests
+
 class SpiFlashPeripheral(SpiSlaveBase):
     def __init__(self, bus, contents, dut, name):
         self._config = SpiConfig(
@@ -228,11 +236,7 @@ async def run_program(dut, raw='', memory=None, wait_cycles=100, extra_func=None
     return ram_chip, flash_chip
 
 def get_register(dut, index):
-
-    gate_level_tests = False
-
-    if 'GATES' in os.environ and os.environ['GATES'] == 'yes':
-        gate_level_tests = True
+    gate_level_tests = is_gate_level_tests()
 
     main_cpu = dut.cpu1
 

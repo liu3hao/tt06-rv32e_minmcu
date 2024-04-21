@@ -2,7 +2,7 @@ import cocotb
 from cocotb.triggers import RisingEdge, FallingEdge, First, ClockCycles
 from cocotbext.spi import SpiBus
 
-from helpers import SpiFlashPeripheral, get_halt_signal, get_io_output_pin, get_output_pin, get_register, load_binary, assert_registers_zero, run_program, set_input_pin
+from helpers import SpiFlashPeripheral, get_halt_signal, get_io_output_pin, get_output_pin, get_register, is_gate_level_tests, load_binary, assert_registers_zero, run_program, set_input_pin
 from cocotbext.uart import UartSink, UartSource
 
 baudrate = 9600
@@ -493,32 +493,34 @@ Data Dump
     assert get_register(dut, 4).value == 1
     assert_registers_zero(dut, 5)
 
-#@cocotb.test()
-async def test_program5_uart_tx(dut):
-    # program sets output pins and reads input pins
+if not is_gate_level_tests():
+    # this is not passing in gl_test
+    @cocotb.test()
+    async def test_program5_uart_tx(dut):
+        # program sets output pins and reads input pins
 
-    bytes = load_binary('binaries/test_uart.bin')
-    dut.ui_in.value = 0     # initialize inputs to some value, other tests fails
-    dut.uio_in.value = 0
-    dut.ui_in[7].value = 1  # must set to high initially, otherwise this would trigger uart rx
+        bytes = load_binary('binaries/test_uart.bin')
+        dut.ui_in.value = 0     # initialize inputs to some value, other tests fails
+        dut.uio_in.value = 0
+        dut.ui_in[7].value = 1  # must set to high initially, otherwise this would trigger uart rx
 
-    async def add_uart_device():
-        uart_sink = UartSink(dut.uart_tx, baud=baudrate, bits=8)
-        
-        all_bytes = []
-        
-        while len(all_bytes) < 5:
-            await FallingEdge(dut.uart_tx)
-            result = await uart_sink.read(1)
-            result = [int(val) for val in result][0]
-            all_bytes.append(result)
+        async def add_uart_device():
+            uart_sink = UartSink(dut.uart_tx, baud=baudrate, bits=8)
+            
+            all_bytes = []
+            
+            while len(all_bytes) < 5:
+                await FallingEdge(dut.uart_tx)
+                result = await uart_sink.read(1)
+                result = [int(val) for val in result][0]
+                all_bytes.append(result)
 
-        byte_array = bytearray(all_bytes)
-        result_string = byte_array.decode('utf-8')
-        assert result_string == 'hello'
+            byte_array = bytearray(all_bytes)
+            result_string = byte_array.decode('utf-8')
+            assert result_string == 'hello'
 
-    ram_chip, flash_chip = await run_program(dut, memory=bytes, 
-                                            extra_func=add_uart_device)
+        ram_chip, flash_chip = await run_program(dut, memory=bytes, 
+                                                extra_func=add_uart_device)
 
 
 @cocotb.test()
